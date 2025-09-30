@@ -251,32 +251,51 @@ function loadLeaderboard(){
   const status = document.getElementById('lbStatus');
   const list = document.getElementById('lbList');
   list.innerHTML = "";
-  status.style.display='block';
-  status.textContent='Loading…';
+  status.style.display = 'block';
+  status.textContent = 'Loading…';
 
   const params = new URLSearchParams(location.search);
-  fetch("https://chilledcatbot-server.onrender.com/highscores",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
+
+  fetch("https://chilledcatbot-server.onrender.com/highscores", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       uid: params.get("uid"),
       chat_id: params.get("chat_id"),
       message_id: params.get("message_id")
     })
   })
-  .then(r=>r.json())
-  .then(data=>{
-    status.style.display='none';
-    const items = (data && data.result) ? data.result.slice(0,10) : [];
-    if(!items.length){ list.innerHTML = "<li>No scores yet</li>"; return; }
-    for(const e of items){
-      const li=document.createElement('li');
-      li.textContent = `${(e.user?.first_name||"Player")} — ${e.score}`;
+  .then(r => r.json())
+  .then(data => {
+    console.log("🏆 Highscore response:", data); // 👀 debug in browser console
+    list.innerHTML = "";
+    status.style.display = 'none';
+
+    if (!data.ok) {
+      list.innerHTML = "<li>Error loading leaderboard</li>";
+      return;
+    }
+
+    const scores = data.result || [];
+    if (!scores.length) {
+      list.innerHTML = "<li>No scores yet</li>";
+      return;
+    }
+
+    for (const [i, e] of scores.entries()) {
+      const li = document.createElement('li');
+      const name = e.user?.first_name || "Player";
+      li.textContent = `${i + 1}. ${name} — ${e.score}`;
       list.appendChild(li);
     }
   })
-  .catch(()=>{ status.textContent='Could not load leaderboard'; });
+  .catch(err => {
+    console.error("Leaderboard fetch failed:", err);
+    status.style.display = 'block';
+    status.textContent = 'Could not load leaderboard';
+  });
 }
+
 
 /* ---------- helpers ---------- */
 function circleRect(cx,cy,cr,rx,ry,rw,rh){
