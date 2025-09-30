@@ -15,7 +15,7 @@
   .group{display:flex;align-items:center;gap:8px}
   .btn{border:3px outset #bdf;background:#0d5bd1;color:#fff;padding:6px 12px;cursor:pointer;border-radius:6px;font-weight:800}
   .btn:active{border-style:inset}
-  select, .input{background:#002a59;color:#fff;border:2px solid #7fc0ff;border-radius:6px;padding:4px 8px}
+  select{background:#002a59;color:#fff;border:2px solid #7fc0ff;border-radius:6px;padding:4px 8px}
   .stat{font-weight:700}
   .stat b{color:#ffe066}
   .board-wrap{padding:10px;display:grid;place-items:center;overflow:hidden}
@@ -26,6 +26,9 @@
   .cell.mine{background:#3b0a1b}
   .num1{color:#7effad}.num2{color:#b1e3ff}.num3{color:#ffd18d}.num4{color:#ff9aa2}
   .num5{color:#ffa3ff}.num6{color:#c4ffd9}.num7{color:#fff}.num8{color:#d6e2ff}
+  .cell.pressed{box-shadow:inset 0 0 6px #ffe066,0 0 6px #ffe066;transition:box-shadow .15s ease}
+  .cell.chorded{animation:chordFlash .3s ease}
+  @keyframes chordFlash{0%{background:#ffe066}100%{background:#0a2244}}
   .footer{padding:6px 10px;text-align:center;font-size:12px;opacity:.85}
   .overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.75)}
   .overlay.show{display:grid}
@@ -57,7 +60,7 @@
         </div>
       </div>
       <div class="board-wrap"><div id="board" class="board"></div></div>
-      <div class="footer">Controls: Click = reveal • Right-click/long-tap = flag</div>
+      <div class="footer">Controls: Click/Tap = reveal • Right-click/long-press = flag • Double-tap/long-press number = chord</div>
     </div>
   </div>
 
@@ -84,6 +87,8 @@ let rows=9, cols=9, mines=10;
 let grid=[], revealed=[], mineSet=new Set();
 let flags=0, safeRemaining=0;
 let state="idle"; let startTime=null, timer=0, raf=null;
+let firstClick=true;
+let lastTap=0, touchTimer=null;
 
 const board=document.getElementById("board");
 const timeEl=document.getElementById("time");
@@ -102,39 +107,174 @@ function initBoard(){
   grid=Array.from({length:rows},()=>Array(cols).fill(0));
   revealed=Array.from({length:rows},()=>Array(cols).fill(false));
   mineSet.clear(); flags=0; safeRemaining=rows*cols-mines; state="playing"; timer=0;
+  firstClick=true;
   board.style.gridTemplateColumns=`repeat(${cols},var(--tile))`;
   board.innerHTML="";
   for(let r=0;r<rows;r++){
     for(let c=0;c<cols;c++){
       const cell=document.createElement("div");
       cell.className="cell hidden"; cell.dataset.r=r; cell.dataset.c=c;
+      // Desktop
       cell.addEventListener("click",()=>reveal(r,c));
       cell.addEventListener("contextmenu",(e)=>{e.preventDefault();toggleFlag(r,c);});
+      cell.addEventListener("mousedown",()=>cell.classList.add("pressed"));
+      cell.addEventListener("mouseup",()=>cell.classList.remove("pressed"));
+      cell.addEventListener("mouseleave",()=>cell.classList.remove("pressed"));
+      // Mobile
+      cell.addEventListener("touchstart",(e)=>{
+        e.preventDefault();
+        cell.classList.add("pressed");
+        touchTimer=setTimeout(()=>{
+          if(revealed[r][c]) mobileChord(r,c);
+          else toggleFlag(r,c);
+          touchTimer=null;
+        },500);
+      },{passive:false});
+      cell.addEventListener("touchend",(e)=>{
+        e.preventDefault();
+        cell.classList.remove("pressed");
+        if(touchTimer){
+          clearTimeout(touchTimer);
+          touchTimer=null;
+          const now=Date.now();
+          if(now-lastTap<300){
+            if(revealed[r][c] && grid[r][c]>0){ mobileChord(r,c); lastTap=0; return; }
+          }
+          lastTap=now;
+          reveal(r,c);
+        }
+      },{passive:false});
       board.appendChild(cell);
     }
   }
-  placeMines(); updateUI(); startTimer();
+  updateUI();
 }
-function placeMines(){
-  let spots=[]; for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) spots.push([r,c]);
-  for(let i=0;i<mines;i++){ const pick=spots.splice(Math.random()*spots.length|0,1)[0]; mineSet.add(pick.join(",")); }
+
+function placeMines(excludeR,excludeC){
+  let spots=[];
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      if(Math.abs(r-excludeR)<=1 && Math.abs(c-excludeC)<=1) continue;
+      spots.push([r,c]);
+    }
+  }
+  for(let i=spots.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [spots[i],spots[j]]=[spots[j],spots[i]];
+  }
+  for(let i=0;i<mines;i++){
+    const [r,c]=spots[i];
+    mineSet.add(r+","+c);
+  }
 }
+
+function calculateCounts(){
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      if(mineSet.has(r+","+c)) continue;
+      let count=0;
+      for(const [nr,nc] of neighbors(r,c)){ if(mineSet.has(nr+","+nc)) count++; }
+      grid[r][c]=count;
+    }
+  }
+}
+
+function neighbors(r,c){
+  const result=[];
+  for(let dr=-1;dr<=1;dr++){
+    for(let dc=-1;dc<=1;dc++){
+      if(dr===0&&dc===0) continue;
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<rows&&nc>=0&&nc<cols) result.push([nr,nc]);
+    }
+  }
+  return result;
+}
+
 function at(r,c){ return board.children[r*cols+c]; }
+
 function reveal(r,c){
-  if(state!=="playing"||revealed[r][c]) return;
-  const cell=at(r,c); revealed[r][c]=true; cell.classList.remove("hidden"); cell.classList.add("revealed");
+  if(state!=="playing") return;
+  if(firstClick){
+    placeMines(r,c);
+    calculateCounts();
+    startTimer();
+    firstClick=false;
+    if(grid[r][c]===0){ floodReveal(r,c); return; }
+  }
+  if(revealed[r][c] && grid[r][c]>0){
+    mobileChord(r,c);
+    return;
+  }
+  if(revealed[r][c]) return;
+  const cell=at(r,c);
+  revealed[r][c]=true;
+  cell.classList.remove("hidden");
+  cell.classList.add("revealed");
   if(mineSet.has(r+","+c)){ cell.classList.add("mine"); gameOver(false); return; }
-  safeRemaining--; updateUI(); if(safeRemaining===0) gameOver(true);
+  safeRemaining--;
+  if(grid[r][c]>0){ cell.textContent=grid[r][c]; cell.classList.add("num"+grid[r][c]); }
+  else floodReveal(r,c);
+  updateUI();
+  if(safeRemaining===0) gameOver(true);
+  else autoFlagIfDone();
 }
-function toggleFlag(r,c){
+
+function floodReveal(r,c){
+  const stack=[[r,c]];
+  while(stack.length){
+    const [cr,cc]=stack.pop();
+    if(cr<0||cr>=rows||cc<0||cc>=cols) continue;
+    if(revealed[cr][cc]) continue;
+    revealed[cr][cc]=true;
+    const cell=at(cr,cc);
+    cell.classList.remove("hidden"); cell.classList.add("revealed");
+    const n=grid[cr][cc];
+    if(n>0){ cell.textContent=n; cell.classList.add("num"+n); }
+    else for(const [nr,nc] of neighbors(cr,cc)) stack.push([nr,nc]);
+  }
+}
+
+function toggleFlag(r,c,force=false){
   if(state!=="playing"||revealed[r][c]) return;
   const cell=at(r,c);
-  if(cell.classList.contains("flag")){ cell.classList.remove("flag"); flags--; cell.textContent=""; }
+  if(force){
+    if(!cell.classList.contains("flag")){
+      cell.classList.add("flag"); cell.textContent="🚩"; flags++; updateUI();
+    }
+    return;
+  }
+  if(cell.classList.contains("flag")){ cell.classList.remove("flag"); cell.textContent=""; flags--; }
   else{ cell.classList.add("flag"); cell.textContent="🚩"; flags++; }
   updateUI();
 }
+
+function mobileChord(r,c){
+  if(!revealed[r][c]||grid[r][c]<=0) return;
+  const neigh=neighbors(r,c);
+  const flagCount=neigh.filter(([nr,nc])=>at(nr,nc).classList.contains("flag")).length;
+  if(flagCount===grid[r][c]){
+    at(r,c).classList.add("chorded");
+    setTimeout(()=>at(r,c).classList.remove("chorded"),300);
+    for(const [nr,nc] of neigh){
+      if(!revealed[nr][nc]&&!at(nr,nc).classList.contains("flag")) reveal(nr,nc);
+    }
+  }
+}
+
+function autoFlagIfDone(){
+  const unrevealed=[];
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    if(!revealed[r][c]&&!at(r,c).classList.contains("flag")) unrevealed.push([r,c]);
+  }
+  const unflaggedMines=mines-flags;
+  if(unrevealed.length===unflaggedMines){
+    for(const [r,c] of unrevealed) toggleFlag(r,c,true);
+  }
+}
+
 function updateUI(){ timeEl.textContent=timer.toFixed(1); flagsEl.textContent=flags; remainingEl.textContent=safeRemaining; }
-function startTimer(){ startTime=performance.now(); function step(now){ timer=(now-startTime)/1000; updateUI(); if(state==="playing") raf=requestAnimationFrame(step); } raf=requestAnimationFrame(step); }
+function startTimer(){ startTime=performance.now(); function step(now){ timer=(now-startTime)/1000; updateUI(); if(state==="playing") raf=requestAnimationFrame(step);} raf=requestAnimationFrame(step);}
 function stopTimer(){ cancelAnimationFrame(raf); }
 
 function gameOver(win){
@@ -166,13 +306,18 @@ function loadLeaderboard(){
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({uid:params.get("uid"),chat_id:params.get("chat_id"),message_id:params.get("message_id")})
   }).then(r=>r.json()).then(data=>{
-    status.style.display="none"; const items=(data&&data.result)?data.result.slice(0,10):[];
+    status.style.display="none";
+    const items=(data&&data.result)?data.result.slice(0,10):[];
     if(!items.length){ list.innerHTML="<li>No scores yet</li>"; return; }
-    for(const e of items){ const li=document.createElement("li"); li.textContent=`${(e.user?.first_name||"Player")} — ${e.score}`; list.appendChild(li); }
+    for(const e of items){
+      const li=document.createElement("li");
+      li.textContent=`${(e.user?.first_name||"Player")} — ${e.score}`;
+      list.appendChild(li);
+    }
   }).catch(()=>{status.textContent="Error loading leaderboard";});
 }
 
-// === Events ===
+// === Buttons ===
 document.getElementById("newGame").onclick=()=>initBoard();
 diffSel.onchange=()=>initBoard();
 document.getElementById("btnRestart").onclick=()=>{document.getElementById("overlay").classList.remove("show");initBoard();};
