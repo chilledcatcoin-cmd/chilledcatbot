@@ -82,7 +82,91 @@
   </div>
 
 <script>
-// (JavaScript game logic here — full code from previous step)
+(()=>{
+let rows=9, cols=9, mines=10;
+let grid=[], revealed=[], mineSet=new Set();
+let flags=0, safeRemaining=0;
+let state="idle"; let timer=0;
+let firstClick=true;
+let lastTap=0, touchTimer=null;
+
+const board=document.getElementById("board");
+const timeEl=document.getElementById("time");
+const flagsEl=document.getElementById("flags");
+const remainingEl=document.getElementById("remaining");
+const diffSel=document.getElementById("difficulty");
+
+function setDifficulty(tag){
+  if(tag==="b"){ cols=9; rows=9; mines=10; }
+  else if(tag==="i"){ cols=16; rows=16; mines=40; }
+  else if(tag==="e"){ cols=30; rows=16; mines=99; }
+}
+
+function initBoard(){
+  setDifficulty(diffSel.value);
+  grid=Array.from({length:rows},()=>Array(cols).fill(0));
+  revealed=Array.from({length:rows},()=>Array(cols).fill(false));
+  mineSet.clear();
+  flags=0;
+  safeRemaining = rows*cols - mines;   // ✅ fixed safe count
+  state="playing"; timer=0; firstClick=true;
+
+  board.style.gridTemplateColumns=`repeat(${cols},var(--tile))`;
+  board.innerHTML="";
+
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const cell=document.createElement("div");
+      cell.className="cell hidden";
+      cell.dataset.r=r; 
+      cell.dataset.c=c;
+      cell.addEventListener("click",()=>reveal(r,c));
+      cell.addEventListener("contextmenu",(e)=>{e.preventDefault();toggleFlag(r,c);});
+      cell.addEventListener("mousedown",()=>cell.classList.add("pressed"));
+      cell.addEventListener("mouseup",()=>cell.classList.remove("pressed"));
+      cell.addEventListener("mouseleave",()=>cell.classList.remove("pressed"));
+      cell.addEventListener("touchstart",(e)=>{
+        e.preventDefault();
+        cell.classList.add("pressed");
+        touchTimer=setTimeout(()=>{
+          if(revealed[r][c]) mobileChord(r,c);
+          else toggleFlag(r,c);
+          touchTimer=null;
+        },500);
+      },{passive:false});
+      cell.addEventListener("touchend",(e)=>{
+        e.preventDefault();
+        cell.classList.remove("pressed");
+        if(touchTimer){
+          clearTimeout(touchTimer);
+          touchTimer=null;
+          const now=Date.now();
+          if(now-lastTap<300){
+            if(revealed[r][c] && grid[r][c]>0){ mobileChord(r,c); lastTap=0; return; }
+          }
+          lastTap=now;
+          reveal(r,c);
+        }
+      },{passive:false});
+      board.appendChild(cell);
+    }
+  }
+  updateUI();
+}
+
+function updateUI(){
+  timeEl.textContent=timer.toFixed(1);
+  flagsEl.textContent=flags;
+  remainingEl.textContent=safeRemaining;
+}
+
+document.getElementById("newGame").onclick=()=>initBoard();
+diffSel.onchange=()=>initBoard();
+document.getElementById("btnRestart").onclick=()=>{document.getElementById("overlay").classList.remove("show");initBoard();};
+document.getElementById("btnShare").onclick=()=>{if(window.TelegramGameProxy) TelegramGameProxy.shareScore();};
+
+initBoard();
+})();
 </script>
 </body>
 </html>
