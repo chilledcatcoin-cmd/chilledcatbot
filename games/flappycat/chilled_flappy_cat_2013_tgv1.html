@@ -257,17 +257,18 @@ function loadLeaderboard(){
   const params = new URLSearchParams(location.search);
 
   fetch("https://chilledcatbot-server.onrender.com/highscores", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
       uid: params.get("uid"),
       chat_id: params.get("chat_id"),
-      message_id: params.get("message_id")
+      message_id: params.get("message_id"),
+      limit: 20 // ask backend for more results
     })
   })
-  .then(r => r.json())
-  .then(data => {
-    console.log("🏆 Highscore response:", data); // 👀 debug in browser console
+  .then(r=>r.json())
+  .then(data=>{
+    console.log("🏆 Leaderboard response:", data);
     list.innerHTML = "";
     status.style.display = 'none';
 
@@ -286,15 +287,19 @@ function loadLeaderboard(){
       const li = document.createElement('li');
       const name = e.user?.first_name || "Player";
       li.textContent = `${i + 1}. ${name} — ${e.score}`;
+      if (e.user?.id == params.get("uid")) {
+        li.style.fontWeight = "bold"; // highlight current player
+      }
       list.appendChild(li);
     }
   })
-  .catch(err => {
+  .catch(err=>{
     console.error("Leaderboard fetch failed:", err);
     status.style.display = 'block';
     status.textContent = 'Could not load leaderboard';
   });
 }
+
 
 
 /* ---------- helpers ---------- */
