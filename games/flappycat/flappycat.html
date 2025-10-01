@@ -66,7 +66,7 @@
         </div>
         <div class="row"><button id="btnRestart" class="btn">Restart</button></div>
         <div class="lb">
-          <h3>🏆 Top 20</h3>
+          <h3>🏆 Top 10</h3>
           <ol id="lbList"></ol>
           <div id="lbStatus" class="muted" style="display:none"></div>
         </div>
@@ -148,7 +148,7 @@ function die(){
       }, err=>console.error("❌ Error saving score:",err));
     } else {
       console.log("ℹ️ Score not higher, skipping update");
-      renderLeaderboard(); // still refresh board to show current top 20
+      renderLeaderboard(); 
     }
   }, err=>{
     console.error("❌ Could not fetch player stats", err);
@@ -166,7 +166,7 @@ function renderLeaderboard(){
   PlayFabClientSDK.GetLeaderboard({
     StatisticName:"FlappyCatScore",
     StartPosition:0,
-    MaxResultsCount:20
+    MaxResultsCount:10
   }, res=>{
     status.style.display="none";
     list.innerHTML="";
