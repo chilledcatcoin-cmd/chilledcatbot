@@ -133,6 +133,8 @@ PlayFab.settings.titleId = playFabTitleId;
 const params = new URLSearchParams(location.search);
 const uid = params.get("uid") || crypto.randomUUID();
 const username = params.get("username") || "Anonymous";
+const contestKey = params.get("contest"); // active contest leaderboard key
+
 
 PlayFabClientSDK.LoginWithCustomID({
   TitleId: playFabTitleId,
@@ -227,16 +229,24 @@ function die(){
   document.getElementById('finalScore').textContent=String(score);
   document.getElementById('ovOver').classList.add('show');
 
-  // ⬇️ First fetch player’s current high score before overwriting
+  // Fetch player’s current high score before overwriting (global)
   PlayFabClientSDK.GetPlayerStatistics({}, res => {
     const prev = res.data.Statistics.find(s=>s.StatisticName==="FlappyCatScore")?.Value || 0;
-    if(score > prev){
-      // Save only if this run beats the previous high
-      PlayFabClientSDK.UpdatePlayerStatistics({
-        Statistics:[{StatisticName:"FlappyCatScore",Value:score}]
-      }, ()=>{
-        console.log("✅ New best score saved:",score);
-        renderLeaderboard(); // only after save confirmed
+    const statsToSave = [];
+
+    if (score > prev) {
+      statsToSave.push({ StatisticName:"FlappyCatScore", Value: score });
+    }
+
+    // If a contest is active, also track in that contest leaderboard
+    if (contestKey) {
+      statsToSave.push({ StatisticName: contestKey, Value: score });
+    }
+
+    if (statsToSave.length > 0) {
+      PlayFabClientSDK.UpdatePlayerStatistics({ Statistics: statsToSave }, () => {
+        console.log("✅ Scores saved:", statsToSave);
+        renderLeaderboard();
       }, err=>console.error("❌ Error saving score:",err));
     } else {
       console.log("ℹ️ Score not higher, skipping update");
@@ -255,8 +265,10 @@ function renderLeaderboard(){
   status.style.display = "block";
   status.textContent = "Loading…";
 
+  const statName = contestKey ? contestKey : "FlappyCatScore";
+
   PlayFabClientSDK.GetLeaderboard({
-    StatisticName: "FlappyCatScore",
+    StatisticName: statName,
     StartPosition: 0,
     MaxResultsCount: 10
   }, res => {
@@ -269,13 +281,10 @@ function renderLeaderboard(){
 
     res.data.Leaderboard.forEach(entry => {
       let name = entry.DisplayName;
-      // If no DisplayName or it’s just a number → show Anonymous
       if (!name || /^\d+$/.test(name)) {
         name = "Anonymous";
       }
-
       const li = document.createElement("li");
-      // <ol> numbers automatically, so no manual i+1
       li.textContent = `${name}: ${entry.StatValue}`;
       list.appendChild(li);
     });
@@ -285,6 +294,7 @@ function renderLeaderboard(){
     console.error("Leaderboard error:", err);
   });
 }
+
 
 
 /* ---------- helpers ---------- */
