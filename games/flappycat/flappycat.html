@@ -239,9 +239,16 @@ function die(){
     }
 
     // If a contest is active, also track in that contest leaderboard
-    if (contestKey) {
-      statsToSave.push({ StatisticName: contestKey, Value: score });
-    }
+// If a contest is active, also track in that contest leaderboard
+if (contestKey) {
+  const prevContest = res.data.Statistics.find(s => s.StatisticName === contestKey)?.Value || 0;
+  if (score > prevContest) {
+    statsToSave.push({ StatisticName: contestKey, Value: score });
+  } else {
+    console.log("ℹ️ Contest score not higher, skipping update");
+  }
+}
+
 
     if (statsToSave.length > 0) {
       PlayFabClientSDK.UpdatePlayerStatistics({ Statistics: statsToSave }, () => {
