@@ -128,7 +128,63 @@ document.getElementById('btnRestart').onclick=()=>{document.getElementById('ovOv
 /* ---------- physics / loop ---------- */
 function step(dt){if(state!=='playing')return;cat.vy+=G*dt;cat.y+=cat.vy*dt;cat.rot=Math.atan2(cat.vy,PIPE_SPEED)*0.8;for(const p of pipes)p.x-=PIPE_SPEED*dt;if(!pipes.length||(VW-(pipes.at(-1)?.x||0))>PIPE_SPACING)spawnPipes();while(pipes.length&&pipes[0].x+pipes[0].w<-50)pipes.shift();for(const p of pipes){if(!p.passed&&cat.x>p.x+p.w){p.passed=true;score++;updateScore();beep(800,0.04,'triangle',0.06);}if(hitPipe(p))return die();}if(cat.y+cat.r>VH-GROUND_H||cat.y-cat.r<0)return die();}
 function hitPipe(p){return circleRect(cat.x,cat.y,cat.r,p.x,0,p.w,p.top)||circleRect(cat.x,cat.y,cat.r,p.x,p.top+p.gap,p.w,VH-GROUND_H-(p.top+p.gap));}
-function die(){if(state==='dead')return;state='dead';beep(220,0.2,'sawtooth',0.08);document.getElementById('finalScore').textContent=String(score);document.getElementById('ovOver').classList.add('show');PlayFabClientSDK.UpdatePlayerStatistics({Statistics:[{StatisticName:"FlappyCatScore",Value:score}]},()=>{console.log("✅ Score saved:",score);renderLeaderboard();},err=>console.error("❌ Error saving score:",err));}
+function die(){
+  if(state==='dead') return;
+  state='dead';
+  beep(220,0.2,'sawtooth',0.08);
+  document.getElementById('finalScore').textContent=String(score);
+  document.getElementById('ovOver').classList.add('show');
+
+  // ⬇️ First fetch player’s current high score before overwriting
+  PlayFabClientSDK.GetPlayerStatistics({}, res => {
+    const prev = res.data.Statistics.find(s=>s.StatisticName==="FlappyCatScore")?.Value || 0;
+    if(score > prev){
+      // Save only if this run beats the previous high
+      PlayFabClientSDK.UpdatePlayerStatistics({
+        Statistics:[{StatisticName:"FlappyCatScore",Value:score}]
+      }, ()=>{
+        console.log("✅ New best score saved:",score);
+        renderLeaderboard(); // only after save confirmed
+      }, err=>console.error("❌ Error saving score:",err));
+    } else {
+      console.log("ℹ️ Score not higher, skipping update");
+      renderLeaderboard(); // still refresh board to show current top 20
+    }
+  }, err=>{
+    console.error("❌ Could not fetch player stats", err);
+    renderLeaderboard();
+  });
+}
+
+function renderLeaderboard(){
+  const status=document.getElementById("lbStatus");
+  const list=document.getElementById("lbList");
+  list.innerHTML="";
+  status.style.display="block";
+  status.textContent="Loading…";
+
+  PlayFabClientSDK.GetLeaderboard({
+    StatisticName:"FlappyCatScore",
+    StartPosition:0,
+    MaxResultsCount:20
+  }, res=>{
+    status.style.display="none";
+    list.innerHTML="";
+    if(!res.data||!res.data.Leaderboard.length){
+      list.innerHTML="<li>No scores yet</li>";
+      return;
+    }
+    res.data.Leaderboard.forEach((entry,i)=>{
+      const li=document.createElement("li");
+      li.textContent=`${i+1}. ${entry.DisplayName||entry.PlayFabId}: ${entry.StatValue}`;
+      list.appendChild(li);
+    });
+  }, err=>{
+    status.textContent="❌ Error loading scores";
+    console.error("Leaderboard error:",err);
+  });
+}
+
 
 /* ---------- leaderboard ---------- */
 function renderLeaderboard(){const status=document.getElementById("lbStatus");const list=document.getElementById("lbList");list.innerHTML="";status.style.display="block";status.textContent="Loading…";PlayFabClientSDK.GetLeaderboard({StatisticName:"FlappyCatScore",StartPosition:0,MaxResultsCount:20},res=>{status.style.display="none";list.innerHTML="";if(!res.data||!res.data.Leaderboard.length){list.innerHTML="<li>No scores yet</li>";return;}res.data.Leaderboard.forEach((entry,i)=>{const li=document.createElement("li");li.textContent=`${i+1}. ${entry.DisplayName||entry.PlayFabId}: ${entry.StatValue}`;list.appendChild(li);});},err=>{status.textContent="❌ Error loading scores";console.error("Leaderboard error:",err);});}
