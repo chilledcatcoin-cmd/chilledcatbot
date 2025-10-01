@@ -102,9 +102,11 @@ PlayFabClientSDK.UpdateUserTitleDisplayName({
 }, err => {
   console.warn("⚠️ Couldn’t set DisplayName:", err);
 
-  // if name already taken, append last 4 chars of uid
   if (err.error === "NameNotAvailable") {
+    // fallback: append uid fragment so it's unique
     const fallback = username + "_" + uid.slice(-4);
+    console.log("ℹ️ Retrying with fallback name:", fallback);
+
     PlayFabClientSDK.UpdateUserTitleDisplayName({
       DisplayName: fallback
     }, res2 => {
@@ -117,9 +119,10 @@ PlayFabClientSDK.UpdateUserTitleDisplayName({
       initGame();
     });
   } else {
-    initGame(); // continue anyway
+    initGame(); // continue even if another error
   }
 });
+
 
 
 }, err => {
