@@ -107,6 +107,7 @@ PlayFabClientSDK.LoginWithCustomID({
 });
 
 function initGame() {
+console.log("🎮 initGame started");
 /* ---------- sizing & canvas ---------- */
 const isMobile=/Mobi|Android/i.test(navigator.userAgent);
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
