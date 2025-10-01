@@ -4,37 +4,31 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
 <title>Flappy Cat — A Chilled Cat Game</title>
+<style>
+body{margin:0;overflow:hidden;background:#86c6ff}
+canvas{display:block;margin:0 auto;background:linear-gradient(#bfeaff,#86c6ff 70%);}
+</style>
 <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 </head>
 <body>
 <canvas id="game"></canvas>
 <script>
-const playFabTitleId = "B4195";
-PlayFab.settings.titleId = playFabTitleId;
-
-const params = new URLSearchParams(location.search);
-const chatId = params.get("chat_id") || "global";
-const statName = `flappycat_${chatId}`;
-
-function submitScore(score){
-  const id = localStorage.getItem("flappy_uid") || crypto.randomUUID();
-  localStorage.setItem("flappy_uid", id);
-  PlayFabClientSDK.LoginWithCustomID({
-    TitleId: playFabTitleId, CustomId: id, CreateAccount: true
-  }, () => {
-    PlayFabClientSDK.UpdatePlayerStatistics({
-      Statistics: [{StatisticName: statName, Value: score}]
-    }, () => console.log("Score submitted"), console.error);
-  }, console.error);
-}
-
-function fetchLeaderboard(){
-  PlayFabClientSDK.GetLeaderboard({
-    StatisticName: statName, StartPosition: 0, MaxResultsCount: 10
-  }, res => {
-    console.log("Leaderboard", res.data.Leaderboard);
-  }, console.error);
-}
+const playFabTitleId="B4195";PlayFab.settings.titleId=playFabTitleId;
+const params=new URLSearchParams(location.search);
+const chatId=params.get("chat_id")||"global";const statName=`flappycat_${chatId}`;
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+canvas.width=480;canvas.height=720;
+let y=200,vy=0,g=0.5,score=0,state="start";
+document.body.onclick=()=>{if(state==="start"){state="play";vy=-8}else if(state==="play"){vy=-8}};
+function loop(){ctx.fillStyle="#87ceeb";ctx.fillRect(0,0,480,720);
+ctx.fillStyle="black";ctx.beginPath();ctx.arc(100,y,20,0,Math.PI*2);ctx.fill();
+ctx.fillText("Score: "+score,10,20);
+if(state==="play"){vy+=g;y+=vy;if(y>700){state="over";submitScore(score);fetchLeaderboard();}}requestAnimationFrame(loop);}loop();
+function submitScore(s){const id=localStorage.getItem("flappy_uid")||crypto.randomUUID();localStorage.setItem("flappy_uid",id);
+PlayFabClientSDK.LoginWithCustomID({TitleId:playFabTitleId,CustomId:id,CreateAccount:true},()=>{
+PlayFabClientSDK.UpdatePlayerStatistics({Statistics:[{StatisticName:statName,Value:s}]},()=>{},console.error);},console.error);}
+function fetchLeaderboard(){PlayFabClientSDK.GetLeaderboard({StatisticName:statName,StartPosition:0,MaxResultsCount:10},res=>{
+console.log("Leaderboard",res.data.Leaderboard);},console.error);}
 </script>
 </body>
 </html>

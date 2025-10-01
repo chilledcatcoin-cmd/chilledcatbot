@@ -7,34 +7,16 @@
 <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 </head>
 <body>
-<div id="board"></div>
+<div id="game">CatSweeper Loaded</div>
 <script>
-const playFabTitleId = "B4195";
-PlayFab.settings.titleId = playFabTitleId;
-
-const params = new URLSearchParams(location.search);
-const chatId = params.get("chat_id") || "global";
-const statName = `catsweeper_${chatId}`;
-
-function submitScore(score){
-  const id = localStorage.getItem("catsweeper_uid") || crypto.randomUUID();
-  localStorage.setItem("catsweeper_uid", id);
-  PlayFabClientSDK.LoginWithCustomID({
-    TitleId: playFabTitleId, CustomId: id, CreateAccount: true
-  }, () => {
-    PlayFabClientSDK.UpdatePlayerStatistics({
-      Statistics: [{StatisticName: statName, Value: score}]
-    }, () => console.log("Score submitted"), console.error);
-  }, console.error);
-}
-
-function fetchLeaderboard(){
-  PlayFabClientSDK.GetLeaderboard({
-    StatisticName: statName, StartPosition: 0, MaxResultsCount: 10
-  }, res => {
-    console.log("Leaderboard", res.data.Leaderboard);
-  }, console.error);
-}
+const playFabTitleId="B4195";PlayFab.settings.titleId=playFabTitleId;
+const params=new URLSearchParams(location.search);
+const chatId=params.get("chat_id")||"global";const statName=`catsweeper_${chatId}`;
+function submitScore(s){const id=localStorage.getItem("cats_uid")||crypto.randomUUID();localStorage.setItem("cats_uid",id);
+PlayFabClientSDK.LoginWithCustomID({TitleId:playFabTitleId,CustomId:id,CreateAccount:true},()=>{
+PlayFabClientSDK.UpdatePlayerStatistics({Statistics:[{StatisticName:statName,Value:s}]},()=>{},console.error);},console.error);}
+function fetchLeaderboard(){PlayFabClientSDK.GetLeaderboard({StatisticName:statName,StartPosition:0,MaxResultsCount:10},res=>{
+console.log("Leaderboard",res.data.Leaderboard);},console.error);}
 </script>
 </body>
 </html>
