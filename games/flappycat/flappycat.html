@@ -83,11 +83,22 @@ const params=new URLSearchParams(location.search);
 const uid=params.get("uid")||crypto.randomUUID();
 
 PlayFabClientSDK.LoginWithCustomID({
-  TitleId:playFabTitleId,
-  CustomId:uid,
-  CreateAccount:true
-},()=>console.log("✅ PlayFab login OK"),
-  err=>console.error("❌ PlayFab login failed:",err));
+  TitleId: playFabTitleId,
+  CustomId: uid,
+  CreateAccount: true
+}, () => {
+  console.log("✅ PlayFab login OK");
+
+  // ⬇️ NEW: Set DisplayName if not already set
+  const tgName = params.get("username");
+  if (tgName) {
+    PlayFabClientSDK.UpdateUserTitleDisplayName({
+      DisplayName: tgName
+    }, res => console.log("✅ DisplayName set:", res.data.DisplayName),
+       err => console.error("❌ Failed to set DisplayName:", err));
+  }
+}, err => console.error("❌ PlayFab login failed:", err));
+
 
 /* ---------- sizing & canvas ---------- */
 const isMobile=/Mobi|Android/i.test(navigator.userAgent);
@@ -174,11 +185,11 @@ function renderLeaderboard(){
       list.innerHTML="<li>No scores yet</li>";
       return;
     }
-res.data.Leaderboard.forEach((entry,i)=>{
-  let name = entry.DisplayName || entry.PlayFabId;
-  // Remove accidental numeric prefixes like "1.glasderg"
-  name = name.replace(/^\d+\./, '').trim();
-  if(!name) name = "Player";
+let name = entry.DisplayName;
+if (!name || /^\d+$/.test(name)) {
+  name = "Anonymous";
+}
+
 
 const li = document.createElement("li");
 // <ol> already numbers automatically, so no need for i+1.
