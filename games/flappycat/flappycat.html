@@ -168,41 +168,43 @@ function die(){
 }
 
 function renderLeaderboard(){
-  const status=document.getElementById("lbStatus");
-  const list=document.getElementById("lbList");
-  list.innerHTML="";
-  status.style.display="block";
-  status.textContent="Loading…";
+  const status = document.getElementById("lbStatus");
+  const list = document.getElementById("lbList");
+  list.innerHTML = "";
+  status.style.display = "block";
+  status.textContent = "Loading…";
 
   PlayFabClientSDK.GetLeaderboard({
-    StatisticName:"FlappyCatScore",
-    StartPosition:0,
-    MaxResultsCount:10
-  }, res=>{
-    status.style.display="none";
-    list.innerHTML="";
-    if(!res.data||!res.data.Leaderboard.length){
-      list.innerHTML="<li>No scores yet</li>";
+    StatisticName: "FlappyCatScore",
+    StartPosition: 0,
+    MaxResultsCount: 10
+  }, res => {
+    status.style.display = "none";
+    list.innerHTML = "";
+    if (!res.data || !res.data.Leaderboard.length) {
+      list.innerHTML = "<li>No scores yet</li>";
       return;
     }
-let name = entry.DisplayName;
-if (!name || /^\d+$/.test(name)) {
-  name = "Anonymous";
-}
 
+    res.data.Leaderboard.forEach(entry => {
+      let name = entry.DisplayName;
+      // If no DisplayName or it’s just a number → show Anonymous
+      if (!name || /^\d+$/.test(name)) {
+        name = "Anonymous";
+      }
 
-const li = document.createElement("li");
-// <ol> already numbers automatically, so no need for i+1.
-li.textContent = `${name}: ${entry.StatValue}`;
-list.appendChild(li);
+      const li = document.createElement("li");
+      // <ol> numbers automatically, so no manual i+1
+      li.textContent = `${name}: ${entry.StatValue}`;
+      list.appendChild(li);
+    });
 
-});
-
-  }, err=>{
-    status.textContent="❌ Error loading scores";
-    console.error("Leaderboard error:",err);
+  }, err => {
+    status.textContent = "❌ Error loading scores";
+    console.error("Leaderboard error:", err);
   });
 }
+
 
 /* ---------- helpers ---------- */
 function circleRect(cx,cy,cr,rx,ry,rw,rh){const tx=Math.max(rx,Math.min(cx,rx+rw));const ty=Math.max(ry,Math.min(cy,ry+rh));const dx=cx-tx,dy=cy-ty;return dx*dx+dy*dy<=cr*cr;}
