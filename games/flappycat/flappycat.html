@@ -180,9 +180,11 @@ res.data.Leaderboard.forEach((entry,i)=>{
   name = name.replace(/^\d+\./, '').trim();
   if(!name) name = "Player";
 
-  const li = document.createElement("li");
-  li.textContent = `${i+1}. ${name}: ${entry.StatValue}`;
-  list.appendChild(li);
+const li = document.createElement("li");
+// <ol> already numbers automatically, so no need for i+1.
+li.textContent = `${name}: ${entry.StatValue}`;
+list.appendChild(li);
+
 });
 
   }, err=>{
