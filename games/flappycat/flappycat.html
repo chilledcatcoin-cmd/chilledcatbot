@@ -89,15 +89,18 @@ PlayFabClientSDK.LoginWithCustomID({
 }, () => {
   console.log("✅ PlayFab login OK");
 
-  // ⬇️ NEW: Set DisplayName if not already set
-  const tgName = params.get("username");
-  if (tgName) {
-    PlayFabClientSDK.UpdateUserTitleDisplayName({
-      DisplayName: tgName
-    }, res => console.log("✅ DisplayName set:", res.data.DisplayName),
-       err => console.error("❌ Failed to set DisplayName:", err));
-  }
-}, err => console.error("❌ PlayFab login failed:", err));
+// extract username from URL params
+const params = new URLSearchParams(window.location.search);
+const username = params.get("username") || "Anonymous";
+
+// update PlayFab DisplayName so leaderboard shows Telegram name
+PlayFabClientSDK.UpdateUserTitleDisplayName({
+    DisplayName: username
+}, function(result) {
+    console.log("✅ Display name updated:", result);
+}, function(error) {
+    console.error("❌ Failed to update display name:", error);
+});
 
 
 /* ---------- sizing & canvas ---------- */
