@@ -104,7 +104,7 @@ PlayFabClientSDK.UpdateUserTitleDisplayName({
 
   if (err.error === "NameNotAvailable") {
     // fallback: append uid fragment so it's unique
-    const fallback = username + "_" + uid.slice(-4);
+    const fallback = (username || "Player") + "_" + uid.slice(-4);
     console.log("ℹ️ Retrying with fallback name:", fallback);
 
     PlayFabClientSDK.UpdateUserTitleDisplayName({
@@ -115,11 +115,11 @@ PlayFabClientSDK.UpdateUserTitleDisplayName({
       }
       initGame();
     }, err2 => {
-      console.error("❌ Failed even with fallback:", err2);
+      console.error("❌ Fallback name failed too:", err2);
       initGame();
     });
   } else {
-    initGame(); // continue even if another error
+    initGame(); // always continue even if another error
   }
 });
 
