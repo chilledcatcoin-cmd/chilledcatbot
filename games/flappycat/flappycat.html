@@ -77,10 +77,11 @@
 <script>
 (()=>{
 /* ---------- PlayFab Setup ---------- */
-const playFabTitleId="B4195"; 
-PlayFab.settings.titleId=playFabTitleId;
-const params=new URLSearchParams(location.search);
-const uid=params.get("uid")||crypto.randomUUID();
+const playFabTitleId = "B4195"; 
+PlayFab.settings.titleId = playFabTitleId;
+const params = new URLSearchParams(location.search);
+const uid = params.get("uid") || crypto.randomUUID();
+const username = params.get("username") || "Anonymous";
 
 PlayFabClientSDK.LoginWithCustomID({
   TitleId: playFabTitleId,
@@ -89,20 +90,23 @@ PlayFabClientSDK.LoginWithCustomID({
 }, () => {
   console.log("✅ PlayFab login OK");
 
-// extract username from URL params
-const params = new URLSearchParams(window.location.search);
-const username = params.get("username") || "Anonymous";
-
-// update PlayFab DisplayName so leaderboard shows Telegram name
-PlayFabClientSDK.UpdateUserTitleDisplayName({
+  // Try setting display name, but don’t block init if it fails
+  PlayFabClientSDK.UpdateUserTitleDisplayName({
     DisplayName: username
-}, function(result) {
-    console.log("✅ Display name updated:", result);
-}, function(error) {
-    console.error("❌ Failed to update display name:", error);
+  }, res => {
+    console.log("✅ DisplayName set:", res.data.DisplayName);
+    initGame();
+  }, err => {
+    console.warn("⚠️ Couldn’t set DisplayName, continuing anyway:", err);
+    initGame(); // continue anyway
+  });
+
+}, err => {
+  console.error("❌ PlayFab login failed:", err);
+  initGame(); // still run game offline
 });
 
-
+function initGame() {
 /* ---------- sizing & canvas ---------- */
 const isMobile=/Mobi|Android/i.test(navigator.userAgent);
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
@@ -216,6 +220,8 @@ function drawPipe(p){const col=getComputedStyle(document.documentElement).getPro
 function loop(t){const now=t/1000,dt=tPrev?Math.min(0.05,now-tPrev):0;tPrev=now;if(state==='playing'){acc+=dt;while(acc>=dtFixed){step(dtFixed);acc-=dtFixed;}}ctx.clearRect(0,0,VW,VH);draw();requestAnimationFrame(loop);}requestAnimationFrame(loop);
 document.getElementById('ovStart').classList.add('show');
 })();
+
+}
 </script>
 </body>
 </html>
