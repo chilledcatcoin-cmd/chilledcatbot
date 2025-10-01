@@ -174,11 +174,17 @@ function renderLeaderboard(){
       list.innerHTML="<li>No scores yet</li>";
       return;
     }
-    res.data.Leaderboard.forEach((entry,i)=>{
-      const li=document.createElement("li");
-      li.textContent=`${i+1}. ${entry.DisplayName||entry.PlayFabId}: ${entry.StatValue}`;
-      list.appendChild(li);
-    });
+res.data.Leaderboard.forEach((entry,i)=>{
+  let name = entry.DisplayName || entry.PlayFabId;
+  // Remove accidental numeric prefixes like "1.glasderg"
+  name = name.replace(/^\d+\./, '').trim();
+  if(!name) name = "Player";
+
+  const li = document.createElement("li");
+  li.textContent = `${i+1}. ${name}: ${entry.StatValue}`;
+  list.appendChild(li);
+});
+
   }, err=>{
     status.textContent="❌ Error loading scores";
     console.error("Leaderboard error:",err);
