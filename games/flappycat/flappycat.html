@@ -1,24 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>CatSweeper ’97 — Chilled Cat Minesweeper</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Flappy Cat — A Chilled Cat Game</title>
 <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 </head>
 <body>
-<div id="board"></div>
+<canvas id="game"></canvas>
 <script>
 const playFabTitleId = "B4195";
 PlayFab.settings.titleId = playFabTitleId;
 
 const params = new URLSearchParams(location.search);
 const chatId = params.get("chat_id") || "global";
-const statName = `catsweeper_${chatId}`;
+const statName = `flappycat_${chatId}`;
 
 function submitScore(score){
-  const id = localStorage.getItem("catsweeper_uid") || crypto.randomUUID();
-  localStorage.setItem("catsweeper_uid", id);
+  const id = localStorage.getItem("flappy_uid") || crypto.randomUUID();
+  localStorage.setItem("flappy_uid", id);
   PlayFabClientSDK.LoginWithCustomID({
     TitleId: playFabTitleId, CustomId: id, CreateAccount: true
   }, () => {
