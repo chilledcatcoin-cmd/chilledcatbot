@@ -8,42 +8,54 @@
   :root { --bg1:#bfeaff; --bg2:#86c6ff; --pipe:#3cb043; --ground:#7c5b3a; --grass:#7ed957; --ui:#111; }
   html,body{margin:0;height:100%;background:var(--bg2);font-family:system-ui;color:var(--ui);overflow:hidden}
   .wrap{display:flex;justify-content:center;align-items:center;height:100%}
-  canvas{image-rendering:pixelated;background:linear-gradient(var(--bg1), var(--bg2) 70%);border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+  canvas{
+    image-rendering:pixelated;
+    background:linear-gradient(var(--bg1), var(--bg2) 70%);
+    border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,.2)
+  }
 
   /* HUD */
   .hud{position:fixed;inset:0;display:grid;place-items:start center;pointer-events:none}
-  .scorebox{pointer-events:auto;position:absolute;top:10px;left:10px;background:#ffffffe6;padding:6px 12px;border-radius:8px;font-weight:900}
+  .topbar{pointer-events:auto;position:absolute;top:10px;right:10px;background:#ffffffb3;padding:6px 10px;border-radius:999px}
+  .btn{border:0;background:#222;color:#fff;padding:6px 12px;border-radius:10px;font-weight:700;cursor:pointer}
+  .scorebox{pointer-events:auto;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:#ffffffe6;padding:8px 14px;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);font-weight:900}
 
   /* Overlays */
   .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:auto}
   .overlay.show{display:flex}
   .panel{width:min(420px,90vw);background:#fffffff2;border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.25);padding:18px;text-align:center}
   .titleWrap{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:8px}
-  .logoCat{width:min(240px,55vw);height:auto;display:block}
-  .gameTitle{font-size:28px;font-weight:900;color:#0b3b8f;text-shadow:0 2px 8px #0002;margin:0}
+  .logoCat{width:min(260px,55vw);height:auto;display:block}
+  .gameTitle{font-size:32px;font-weight:900;color:#0b3b8f;text-shadow:0 2px 8px #0002;letter-spacing:.5px;margin:0}
   .sub{font-size:14px;color:#333;margin:0 0 6px}
   .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px}
-  .btn{border:0;background:#222;color:#fff;padding:6px 12px;border-radius:10px;font-weight:700;cursor:pointer}
 
   /* Leaderboard */
   .lb{margin-top:12px;text-align:left;background:#f7f9ff;border:1px solid #e4e9ff;border-radius:12px;padding:10px}
   .lb h3{margin:0 0 6px;font-size:16px}
   .lb ol{margin:0;padding-left:22px}
   .muted{color:#666;font-size:13px}
+
+  @media (max-width: 480px){
+    .gameTitle{font-size:26px}
+  }
 </style>
+<!-- Telegram Games API -->
+<script src="https://telegram.org/js/games.js"></script>
 <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 </head>
 <body>
   <div class="wrap"><canvas id="game"></canvas></div>
 
   <div class="hud">
+    <div class="topbar"><button id="btnMute" class="btn">🔊</button></div>
     <div id="scorebox" class="scorebox">Score: <span id="score">0</span></div>
 
     <!-- START OVERLAY -->
     <div id="ovStart" class="overlay show">
       <div class="panel">
         <div class="titleWrap">
-          <img class="logoCat" src="https://chilledcatcoin-cmd.github.io/chilledcatbot/games/flappycat/images/chilled_cat_fappy.png" alt="Flappy Cat">
+          <img class="logoCat" src="./images/chilled_cat_fappy.png" alt="Flappy Cat">
           <h1 class="gameTitle">CHILLED FLAPPY CAT</h1>
           <p class="sub">Tap screen or press Space to flap</p>
         </div>
@@ -57,13 +69,16 @@
     <div id="ovOver" class="overlay">
       <div class="panel">
         <div class="titleWrap" style="margin-bottom:4px">
-          <img class="logoCat" src="https://chilledcatcoin-cmd.github.io/chilledcatbot/games/flappycat/images/bonk.png" alt="Bonk">
+          <img class="logoCat" src="./images/bonk.png" alt="Bonk">
           <h2 class="gameTitle" style="font-size:24px">Game Over</h2>
           <p class="sub">Final score: <b id="finalScore">0</b></p>
         </div>
+
         <div class="row">
           <button id="btnRestart" class="btn">Restart</button>
+          <button id="btnShare" class="btn">Share Score</button>
         </div>
+
         <div class="lb">
           <h3>🏆 Top 10</h3>
           <ol id="lbList"></ol>
@@ -75,77 +90,229 @@
 
 <script>
 (()=>{
-/* ---------- Canvas ---------- */
+/* ---------- sizing & canvas ---------- */
+const isMobile=/Mobi|Android/i.test(navigator.userAgent);
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
-canvas.width=480;canvas.height=720;
+const DPR=Math.max(1,Math.floor(window.devicePixelRatio||1));
 let VW=480,VH=720;
 
-/* ---------- PlayFab ---------- */
-const playFabTitleId="B4195";PlayFab.settings.titleId=playFabTitleId;
-const params=new URLSearchParams(location.search);
-const chatId=params.get("chat_id")||"global";const statName=`flappycat_${chatId}`;
-const uid=localStorage.getItem("flappy_uid")||crypto.randomUUID();localStorage.setItem("flappy_uid",uid);
+function fit(){
+  const vw=window.innerWidth,vh=window.innerHeight,aspect=3/2;
+  let tw=vw, th=tw*aspect; if(th>vh){ th=vh; tw=th/aspect; }
+  VW=tw; VH=th;
+  canvas.style.width=VW+'px'; canvas.style.height=VH+'px';
+  canvas.width=Math.floor(VW*DPR); canvas.height=Math.floor(VH*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+fit(); addEventListener('resize',fit);
 
-/* ---------- Game State ---------- */
-const G=1200/60, FLAP=8, PIPE_W=70, PIPE_SPACING=200, PIPE_SPEED=2, GROUND_H=60;
-let state="start", score=0, pipes=[], cat={x:120,y:200,vy:0,r:20,rot:0};
-const catImg=new Image();catImg.src="https://chilledcatcoin-cmd.github.io/chilledcatbot/games/flappycat/images/chilled_cat_fappy.png";
-let catImgReady=false;catImg.onload=()=>catImgReady=true;
+/* ---------- audio ---------- */
+let muted=false,audioCtx;
+function initAudio(){ if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch{} } }
+function beep(f=880,d=0.05,t='sine',v=0.1){
+  if(muted||!audioCtx) return;
+  try{
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type=t; o.frequency.value=f; g.gain.value=v;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime+d);
+  }catch{}
+}
+document.getElementById('btnMute').onclick=()=>{muted=!muted;document.getElementById('btnMute').textContent=muted?'🔈':'🔊'}
 
-function updateScore(){document.getElementById('score').textContent=score;}
-function spawnPipe(){let gap=140+Math.random()*60;let top=Math.random()*(VH-GROUND_H-gap-100)+50;pipes.push({x:VW,w:PIPE_W,top,gap,passed:false});}
-function reset(){score=0;pipes=[];cat.y=200;cat.vy=0;state="play";spawnPipe();updateScore();}
-function gameOver(){state="over";document.getElementById('finalScore').textContent=score;document.getElementById('ovOver').classList.add('show');submitScore(score);fetchLeaderboard();}
-
-/* ---------- Input ---------- */
-document.getElementById('btnStart').onclick=()=>{document.getElementById('ovStart').classList.remove('show');reset();};
-document.getElementById('btnRestart').onclick=()=>{document.getElementById('ovOver').classList.remove('show');reset();};
-canvas.addEventListener('click',()=>{if(state==="start"){reset();}else if(state==="play"){cat.vy=-FLAP;}});
-window.addEventListener('keydown',e=>{if(e.code==="Space"){if(state==="start"){reset();}else if(state==="play"){cat.vy=-FLAP;}}});
-
-/* ---------- Loop ---------- */
-function loop(){ctx.clearRect(0,0,VW,VH);
-  // pipes
-  if(state==="play"){
-    if(!pipes.length||VW-pipes[pipes.length-1].x>PIPE_SPACING)spawnPipe();
-    pipes.forEach(p=>{p.x-=PIPE_SPEED;});
-    if(pipes[0].x+pipes[0].w<0)pipes.shift();
+/* ---------- wake lock (optional) ---------- */
+let wakeLock=null;
+async function requestWakeLock(){
+  if('wakeLock' in navigator){
+    try{
+      wakeLock = await navigator.wakeLock.request('screen');
+      document.addEventListener('visibilitychange',()=>{
+        if(document.visibilityState==='visible' && !wakeLock) requestWakeLock();
+      });
+    }catch(e){}
   }
-  pipes.forEach(p=>{
-    ctx.fillStyle="green";
-    ctx.fillRect(p.x,0,p.w,p.top);
-    ctx.fillRect(p.x,p.top+p.gap,p.w,VH-GROUND_H-(p.top+p.gap));
-    if(state==="play"&&!p.passed&&cat.x>p.x+p.w){p.passed=true;score++;updateScore();}
-    if(state==="play"&&collides(p))gameOver();
+}
+
+/* ---------- game state ---------- */
+const G=1200, FLAP=420, PIPE_GAP_MIN=150, PIPE_GAP_MAX=210, PIPE_W=70, PIPE_SPACING=220, PIPE_SPEED=160, GROUND_H=60;
+let tPrev=0, acc=0, dtFixed=1/120;
+let state='start', score=0;
+
+const catImg=new Image(); catImg.src='./images/chilled_cat_fappy.png';
+let catImgReady=false; catImg.onload=()=>catImgReady=true;
+
+const cat={x:120,y:200,vy:0,r:28,rot:0};
+const pipes=[];
+
+function updateScore(){ document.getElementById('score').textContent=score; }
+function spawnPipes(initial=false){
+  const bx = initial ? VW+100 : Math.max(VW+10,(pipes.at(-1)?.x||0)+PIPE_SPACING);
+  const gap=PIPE_GAP_MIN+Math.random()*(PIPE_GAP_MAX-PIPE_GAP_MIN);
+  const m=80; const top=m+Math.random()*(VH-GROUND_H-m*2-gap);
+  pipes.push({x:bx,w:PIPE_W,top,gap,passed:false});
+}
+function fullyReset(){
+  score=0; updateScore();
+  state='playing';
+  cat.x=120; cat.y=VH/2-60; cat.vy=0; cat.rot=0;
+  pipes.length=0; spawnPipes(true);
+}
+function startGame(){
+  document.getElementById('ovStart').classList.remove('show');
+  fullyReset();
+  requestWakeLock();
+}
+
+/* ---------- input ---------- */
+if(isMobile){
+  canvas.addEventListener('touchstart',e=>{
+    initAudio(); e.preventDefault();
+    if(state==='start'||state==='dead'){ startGame(); return; }
+    if(state==='playing'){ cat.vy=-FLAP; beep(520,0.05,'square',0.06); }
+  },{passive:false});
+}else{
+  addEventListener('keydown',e=>{
+    if(e.code==='Space'){
+      e.preventDefault(); initAudio();
+      if(state==='start'||state==='dead'){ startGame(); return; }
+      if(state==='playing'){ cat.vy=-FLAP; beep(520,0.05,'square',0.06); }
+    }
   });
-  // ground
-  ctx.fillStyle="#7ed957";ctx.fillRect(0,VH-GROUND_H,VW,20);
-  ctx.fillStyle="#7c5b3a";ctx.fillRect(0,VH-GROUND_H+20,VW,GROUND_H-20);
-  // cat
-  if(state==="play"){cat.vy+=0.5;cat.y+=cat.vy;if(cat.y+cat.r>VH-GROUND_H)gameOver();}
-  ctx.save();ctx.translate(cat.x,cat.y);ctx.rotate(cat.rot);
-  if(catImgReady){ctx.drawImage(catImg,-28,-28,56,56);}else{ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(0,0,20,0,Math.PI*2);ctx.fill();}
+  canvas.addEventListener('click',e=>{
+    initAudio(); e.preventDefault();
+    if(state==='start'||state==='dead'){ startGame(); return; }
+    if(state==='playing'){ cat.vy=-FLAP; beep(520,0.05,'square',0.06); }
+  });
+}
+document.getElementById('btnStart').onclick = ()=>{ initAudio(); startGame(); };
+
+/* ---------- restart & share ---------- */
+document.getElementById('btnRestart').onclick=()=>{
+  document.getElementById('ovOver').classList.remove('show');
+  fullyReset();
+};
+document.getElementById('btnShare').onclick=()=>{
+  if(window.TelegramGameProxy) TelegramGameProxy.shareScore();
+};
+
+/* ---------- physics / loop ---------- */
+function step(dt){
+  if(state!=='playing') return;
+
+  cat.vy+=G*dt; cat.y+=cat.vy*dt; cat.rot=Math.atan2(cat.vy,PIPE_SPEED)*0.8;
+
+  for(const p of pipes) p.x-=PIPE_SPEED*dt;
+  if(!pipes.length || (VW-(pipes.at(-1)?.x||0))>PIPE_SPACING) spawnPipes();
+  while(pipes.length && pipes[0].x+pipes[0].w<-50) pipes.shift();
+
+  for(const p of pipes){
+    if(!p.passed && cat.x>p.x+p.w){
+      p.passed=true; score++; updateScore(); beep(800,0.04,'triangle',0.06);
+    }
+    if(hitPipe(p)) return die();
+  }
+  if(cat.y+cat.r>VH-GROUND_H || cat.y-cat.r<0) return die();
+}
+
+function hitPipe(p){
+  return circleRect(cat.x,cat.y,cat.r, p.x,0,p.w,p.top) ||
+         circleRect(cat.x,cat.y,cat.r, p.x,p.top+p.gap,p.w,VH-GROUND_H-(p.top+p.gap));
+}
+
+/* ---------- PlayFab ---------- */
+const playFabTitleId = "B4195"; 
+PlayFab.settings.titleId = playFabTitleId;
+const uid = localStorage.getItem("flappy_uid") || crypto.randomUUID();
+localStorage.setItem("flappy_uid", uid);
+
+function die(){
+  if(state==='dead') return;
+  state='dead'; beep(220,0.2,'sawtooth',0.08);
+  document.getElementById('finalScore').textContent = String(score);
+  document.getElementById('ovOver').classList.add('show');
+
+  // Submit score to PlayFab
+  PlayFabClientSDK.LoginWithCustomID({
+    TitleId: playFabTitleId,
+    CustomId: uid,
+    CreateAccount: true
+  }, () => {
+    PlayFabClientSDK.UpdatePlayerStatistics({
+      Statistics: [{ StatisticName: "flappycat_global", Value: score }]
+    }, () => {}, console.error);
+  }, console.error);
+
+  // Load leaderboard
+  loadLeaderboard();
+}
+
+function loadLeaderboard(){
+  const status = document.getElementById('lbStatus');
+  const list = document.getElementById('lbList');
+  list.innerHTML = "";
+  status.style.display='block';
+  status.textContent='Loading…';
+
+  PlayFabClientSDK.GetLeaderboard({
+    StatisticName: "flappycat_global",
+    StartPosition: 0,
+    MaxResultsCount: 10
+  }, res => {
+    status.style.display='none';
+    const items = res.data.Leaderboard || [];
+    if(!items.length){ list.innerHTML = "<li>No scores yet</li>"; return; }
+    for(const e of items){
+      const li=document.createElement('li');
+      li.textContent = `${e.Position+1}. ${e.DisplayName || "Player"} — ${e.StatValue}`;
+      list.appendChild(li);
+    }
+  }, () => { status.textContent='Could not load leaderboard'; });
+}
+
+/* ---------- helpers ---------- */
+function circleRect(cx,cy,cr,rx,ry,rw,rh){
+  const tx=Math.max(rx,Math.min(cx,rx+rw));
+  const ty=Math.max(ry,Math.min(cy,ry+rh));
+  const dx=cx-tx, dy=cy-ty;
+  return dx*dx+dy*dy<=cr*cr;
+}
+
+function draw(){
+  for(const p of pipes) drawPipe(p);
+
+  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--grass');
+  ctx.fillRect(0,VH-GROUND_H,VW,20);
+  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--ground');
+  ctx.fillRect(0,VH-GROUND_H+20,VW,GROUND_H-20);
+
+  ctx.save(); ctx.translate(cat.x,cat.y); ctx.rotate(cat.rot);
+  if(catImgReady){ ctx.drawImage(catImg,-36,-36,72,72); }
+  else { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,28,0,Math.PI*2); ctx.fill(); }
   ctx.restore();
+
+  if(state==='playing'){
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.strokeStyle='rgba(0,0,0,.25)'; ctx.lineWidth=6;
+    ctx.font='900 56px system-ui'; ctx.textAlign='center';
+    ctx.strokeText(String(score),VW/2,90); ctx.fillText(String(score),VW/2,90);
+  }
+}
+function drawPipe(p){
+  const col=getComputedStyle(document.documentElement).getPropertyValue('--pipe');
+  ctx.fillStyle=col; ctx.fillRect(p.x,0,p.w,p.top); ctx.fillRect(p.x-4,p.top-16,p.w+8,16);
+  const by=p.top+p.gap; ctx.fillRect(p.x,by,p.w,VH-GROUND_H-by); ctx.fillRect(p.x-4,by,p.w+8,16);
+}
+
+function loop(t){
+  const now=t/1000, dt=tPrev?Math.min(0.05,now-tPrev):0; tPrev=now;
+  if(state==='playing'){ acc+=dt; while(acc>=dtFixed){ step(dtFixed); acc-=dtFixed; } }
+  ctx.clearRect(0,0,VW,VH); draw();
   requestAnimationFrame(loop);
 }
-function collides(p){return cat.x+cat.r>p.x&&cat.x-cat.r<p.x+p.w&&(cat.y-cat.r<p.top||cat.y+cat.r>p.top+p.gap);}
-loop();
+requestAnimationFrame(loop);
 
-/* ---------- PlayFab Calls ---------- */
-function submitScore(s){
-  PlayFabClientSDK.LoginWithCustomID({TitleId:playFabTitleId,CustomId:uid,CreateAccount:true},()=>{
-    PlayFabClientSDK.UpdatePlayerStatistics({Statistics:[{StatisticName:statName,Value:s}]},()=>{},console.error);
-  },console.error);
-}
-function fetchLeaderboard(){
-  const list=document.getElementById("lbList");list.innerHTML="";
-  const status=document.getElementById("lbStatus");status.style.display="block";status.textContent="Loading…";
-  PlayFabClientSDK.GetLeaderboard({StatisticName:statName,StartPosition:0,MaxResultsCount:10},res=>{
-    status.style.display="none";
-    if(!res.data.Leaderboard.length){list.innerHTML="<li>No scores yet</li>";return;}
-    res.data.Leaderboard.forEach((e,i)=>{let li=document.createElement("li");li.textContent=`${i+1}. ${e.DisplayName||"Player"} — ${e.StatValue}`;list.appendChild(li);});
-  },()=>{status.textContent="Failed to load";});
-}
+// init
+document.getElementById('ovStart').classList.add('show');
 })();
 </script>
 </body>
