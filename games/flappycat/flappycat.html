@@ -220,8 +220,6 @@ function drawPipe(p){const col=getComputedStyle(document.documentElement).getPro
 function loop(t){const now=t/1000,dt=tPrev?Math.min(0.05,now-tPrev):0;tPrev=now;if(state==='playing'){acc+=dt;while(acc>=dtFixed){step(dtFixed);acc-=dtFixed;}}ctx.clearRect(0,0,VW,VH);draw();requestAnimationFrame(loop);}requestAnimationFrame(loop);
 document.getElementById('ovStart').classList.add('show');
 })();
-
-}
 </script>
 </body>
 </html>
