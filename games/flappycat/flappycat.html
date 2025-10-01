@@ -107,7 +107,6 @@ PlayFabClientSDK.LoginWithCustomID({
 });
 
 function initGame() {
-console.log("🎮 initGame started");
 /* ---------- sizing & canvas ---------- */
 const isMobile=/Mobi|Android/i.test(navigator.userAgent);
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
@@ -220,6 +219,7 @@ function draw(){for(const p of pipes)drawPipe(p);ctx.fillStyle=getComputedStyle(
 function drawPipe(p){const col=getComputedStyle(document.documentElement).getPropertyValue('--pipe');ctx.fillStyle=col;ctx.fillRect(p.x,0,p.w,p.top);ctx.fillRect(p.x-4,p.top-16,p.w+8,16);const by=p.top+p.gap;ctx.fillRect(p.x,by,p.w,VH-GROUND_H-by);ctx.fillRect(p.x-4,by,p.w+8,16);}
 function loop(t){const now=t/1000,dt=tPrev?Math.min(0.05,now-tPrev):0;tPrev=now;if(state==='playing'){acc+=dt;while(acc>=dtFixed){step(dtFixed);acc-=dtFixed;}}ctx.clearRect(0,0,VW,VH);draw();requestAnimationFrame(loop);}requestAnimationFrame(loop);
 document.getElementById('ovStart').classList.add('show');
+}
 })();
 </script>
 </body>
