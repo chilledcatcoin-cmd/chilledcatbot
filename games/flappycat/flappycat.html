@@ -5,30 +5,148 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
 <title>Flappy Cat — A Chilled Cat Game</title>
 <style>
-body{margin:0;overflow:hidden;background:#86c6ff}
-canvas{display:block;margin:0 auto;background:linear-gradient(#bfeaff,#86c6ff 70%);}
+  :root { --bg1:#bfeaff; --bg2:#86c6ff; --pipe:#3cb043; --ground:#7c5b3a; --grass:#7ed957; --ui:#111; }
+  html,body{margin:0;height:100%;background:var(--bg2);font-family:system-ui;color:var(--ui);overflow:hidden}
+  .wrap{display:flex;justify-content:center;align-items:center;height:100%}
+  canvas{image-rendering:pixelated;background:linear-gradient(var(--bg1), var(--bg2) 70%);border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+
+  /* HUD */
+  .hud{position:fixed;inset:0;display:grid;place-items:start center;pointer-events:none}
+  .scorebox{pointer-events:auto;position:absolute;top:10px;left:10px;background:#ffffffe6;padding:6px 12px;border-radius:8px;font-weight:900}
+
+  /* Overlays */
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:auto}
+  .overlay.show{display:flex}
+  .panel{width:min(420px,90vw);background:#fffffff2;border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.25);padding:18px;text-align:center}
+  .titleWrap{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:8px}
+  .logoCat{width:min(240px,55vw);height:auto;display:block}
+  .gameTitle{font-size:28px;font-weight:900;color:#0b3b8f;text-shadow:0 2px 8px #0002;margin:0}
+  .sub{font-size:14px;color:#333;margin:0 0 6px}
+  .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+  .btn{border:0;background:#222;color:#fff;padding:6px 12px;border-radius:10px;font-weight:700;cursor:pointer}
+
+  /* Leaderboard */
+  .lb{margin-top:12px;text-align:left;background:#f7f9ff;border:1px solid #e4e9ff;border-radius:12px;padding:10px}
+  .lb h3{margin:0 0 6px;font-size:16px}
+  .lb ol{margin:0;padding-left:22px}
+  .muted{color:#666;font-size:13px}
 </style>
 <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 </head>
 <body>
-<canvas id="game"></canvas>
+  <div class="wrap"><canvas id="game"></canvas></div>
+
+  <div class="hud">
+    <div id="scorebox" class="scorebox">Score: <span id="score">0</span></div>
+
+    <!-- START OVERLAY -->
+    <div id="ovStart" class="overlay show">
+      <div class="panel">
+        <div class="titleWrap">
+          <img class="logoCat" src="https://chilledcatcoin-cmd.github.io/chilledcatbot/games/flappycat/images/chilled_cat_fappy.png" alt="Flappy Cat">
+          <h1 class="gameTitle">CHILLED FLAPPY CAT</h1>
+          <p class="sub">Tap screen or press Space to flap</p>
+        </div>
+        <div class="row">
+          <button id="btnStart" class="btn">Start</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GAME OVER OVERLAY -->
+    <div id="ovOver" class="overlay">
+      <div class="panel">
+        <div class="titleWrap" style="margin-bottom:4px">
+          <img class="logoCat" src="https://chilledcatcoin-cmd.github.io/chilledcatbot/games/flappycat/images/bonk.png" alt="Bonk">
+          <h2 class="gameTitle" style="font-size:24px">Game Over</h2>
+          <p class="sub">Final score: <b id="finalScore">0</b></p>
+        </div>
+        <div class="row">
+          <button id="btnRestart" class="btn">Restart</button>
+        </div>
+        <div class="lb">
+          <h3>🏆 Top 10</h3>
+          <ol id="lbList"></ol>
+          <div id="lbStatus" class="muted" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
+(()=>{
+/* ---------- Canvas ---------- */
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+canvas.width=480;canvas.height=720;
+let VW=480,VH=720;
+
+/* ---------- PlayFab ---------- */
 const playFabTitleId="B4195";PlayFab.settings.titleId=playFabTitleId;
 const params=new URLSearchParams(location.search);
 const chatId=params.get("chat_id")||"global";const statName=`flappycat_${chatId}`;
-const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
-canvas.width=480;canvas.height=720;
-let y=200,vy=0,g=0.5,score=0,state="start";
-document.body.onclick=()=>{if(state==="start"){state="play";vy=-8}else if(state==="play"){vy=-8}};
-function loop(){ctx.fillStyle="#87ceeb";ctx.fillRect(0,0,480,720);
-ctx.fillStyle="black";ctx.beginPath();ctx.arc(100,y,20,0,Math.PI*2);ctx.fill();
-ctx.fillText("Score: "+score,10,20);
-if(state==="play"){vy+=g;y+=vy;if(y>700){state="over";submitScore(score);fetchLeaderboard();}}requestAnimationFrame(loop);}loop();
-function submitScore(s){const id=localStorage.getItem("flappy_uid")||crypto.randomUUID();localStorage.setItem("flappy_uid",id);
-PlayFabClientSDK.LoginWithCustomID({TitleId:playFabTitleId,CustomId:id,CreateAccount:true},()=>{
-PlayFabClientSDK.UpdatePlayerStatistics({Statistics:[{StatisticName:statName,Value:s}]},()=>{},console.error);},console.error);}
-function fetchLeaderboard(){PlayFabClientSDK.GetLeaderboard({StatisticName:statName,StartPosition:0,MaxResultsCount:10},res=>{
-console.log("Leaderboard",res.data.Leaderboard);},console.error);}
+const uid=localStorage.getItem("flappy_uid")||crypto.randomUUID();localStorage.setItem("flappy_uid",uid);
+
+/* ---------- Game State ---------- */
+const G=1200/60, FLAP=8, PIPE_W=70, PIPE_SPACING=200, PIPE_SPEED=2, GROUND_H=60;
+let state="start", score=0, pipes=[], cat={x:120,y:200,vy:0,r:20,rot:0};
+const catImg=new Image();catImg.src="https://chilledcatcoin-cmd.github.io/chilledcatbot/games/flappycat/images/chilled_cat_fappy.png";
+let catImgReady=false;catImg.onload=()=>catImgReady=true;
+
+function updateScore(){document.getElementById('score').textContent=score;}
+function spawnPipe(){let gap=140+Math.random()*60;let top=Math.random()*(VH-GROUND_H-gap-100)+50;pipes.push({x:VW,w:PIPE_W,top,gap,passed:false});}
+function reset(){score=0;pipes=[];cat.y=200;cat.vy=0;state="play";spawnPipe();updateScore();}
+function gameOver(){state="over";document.getElementById('finalScore').textContent=score;document.getElementById('ovOver').classList.add('show');submitScore(score);fetchLeaderboard();}
+
+/* ---------- Input ---------- */
+document.getElementById('btnStart').onclick=()=>{document.getElementById('ovStart').classList.remove('show');reset();};
+document.getElementById('btnRestart').onclick=()=>{document.getElementById('ovOver').classList.remove('show');reset();};
+canvas.addEventListener('click',()=>{if(state==="start"){reset();}else if(state==="play"){cat.vy=-FLAP;}});
+window.addEventListener('keydown',e=>{if(e.code==="Space"){if(state==="start"){reset();}else if(state==="play"){cat.vy=-FLAP;}}});
+
+/* ---------- Loop ---------- */
+function loop(){ctx.clearRect(0,0,VW,VH);
+  // pipes
+  if(state==="play"){
+    if(!pipes.length||VW-pipes[pipes.length-1].x>PIPE_SPACING)spawnPipe();
+    pipes.forEach(p=>{p.x-=PIPE_SPEED;});
+    if(pipes[0].x+pipes[0].w<0)pipes.shift();
+  }
+  pipes.forEach(p=>{
+    ctx.fillStyle="green";
+    ctx.fillRect(p.x,0,p.w,p.top);
+    ctx.fillRect(p.x,p.top+p.gap,p.w,VH-GROUND_H-(p.top+p.gap));
+    if(state==="play"&&!p.passed&&cat.x>p.x+p.w){p.passed=true;score++;updateScore();}
+    if(state==="play"&&collides(p))gameOver();
+  });
+  // ground
+  ctx.fillStyle="#7ed957";ctx.fillRect(0,VH-GROUND_H,VW,20);
+  ctx.fillStyle="#7c5b3a";ctx.fillRect(0,VH-GROUND_H+20,VW,GROUND_H-20);
+  // cat
+  if(state==="play"){cat.vy+=0.5;cat.y+=cat.vy;if(cat.y+cat.r>VH-GROUND_H)gameOver();}
+  ctx.save();ctx.translate(cat.x,cat.y);ctx.rotate(cat.rot);
+  if(catImgReady){ctx.drawImage(catImg,-28,-28,56,56);}else{ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(0,0,20,0,Math.PI*2);ctx.fill();}
+  ctx.restore();
+  requestAnimationFrame(loop);
+}
+function collides(p){return cat.x+cat.r>p.x&&cat.x-cat.r<p.x+p.w&&(cat.y-cat.r<p.top||cat.y+cat.r>p.top+p.gap);}
+loop();
+
+/* ---------- PlayFab Calls ---------- */
+function submitScore(s){
+  PlayFabClientSDK.LoginWithCustomID({TitleId:playFabTitleId,CustomId:uid,CreateAccount:true},()=>{
+    PlayFabClientSDK.UpdatePlayerStatistics({Statistics:[{StatisticName:statName,Value:s}]},()=>{},console.error);
+  },console.error);
+}
+function fetchLeaderboard(){
+  const list=document.getElementById("lbList");list.innerHTML="";
+  const status=document.getElementById("lbStatus");status.style.display="block";status.textContent="Loading…";
+  PlayFabClientSDK.GetLeaderboard({StatisticName:statName,StartPosition:0,MaxResultsCount:10},res=>{
+    status.style.display="none";
+    if(!res.data.Leaderboard.length){list.innerHTML="<li>No scores yet</li>";return;}
+    res.data.Leaderboard.forEach((e,i)=>{let li=document.createElement("li");li.textContent=`${i+1}. ${e.DisplayName||"Player"} — ${e.StatValue}`;list.appendChild(li);});
+  },()=>{status.textContent="Failed to load";});
+}
+})();
 </script>
 </body>
 </html>
