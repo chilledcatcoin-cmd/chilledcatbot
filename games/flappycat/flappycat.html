@@ -92,15 +92,35 @@ PlayFabClientSDK.LoginWithCustomID({
   console.log("✅ PlayFab login OK");
 
   // Try setting display name, but don’t block init if it fails
-  PlayFabClientSDK.UpdateUserTitleDisplayName({
-    DisplayName: username
-  }, res => {
+PlayFabClientSDK.UpdateUserTitleDisplayName({
+  DisplayName: username
+}, res => {
+  if (res && res.data) {
     console.log("✅ DisplayName set:", res.data.DisplayName);
-    initGame();
-  }, err => {
-    console.warn("⚠️ Couldn’t set DisplayName, continuing anyway:", err);
+  }
+  initGame();
+}, err => {
+  console.warn("⚠️ Couldn’t set DisplayName:", err);
+
+  // if name already taken, append last 4 chars of uid
+  if (err.error === "NameNotAvailable") {
+    const fallback = username + "_" + uid.slice(-4);
+    PlayFabClientSDK.UpdateUserTitleDisplayName({
+      DisplayName: fallback
+    }, res2 => {
+      if (res2 && res2.data) {
+        console.log("✅ Fallback DisplayName set:", res2.data.DisplayName);
+      }
+      initGame();
+    }, err2 => {
+      console.error("❌ Failed even with fallback:", err2);
+      initGame();
+    });
+  } else {
     initGame(); // continue anyway
-  });
+  }
+});
+
 
 }, err => {
   console.error("❌ PlayFab login failed:", err);
