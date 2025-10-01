@@ -83,9 +83,23 @@ const playFabTitleId="B4195";
 PlayFab.settings.titleId=playFabTitleId;
 const params=new URLSearchParams(location.search);
 const uid=params.get("uid")||crypto.randomUUID();
-PlayFabClientSDK.LoginWithCustomID({TitleId:playFabTitleId,CustomId:uid,CreateAccount:true},
-  ()=>console.log("✅ PlayFab login OK"),
-  err=>console.error("❌ PlayFab login failed:",err));
+PlayFabClientSDK.LoginWithCustomID({
+  TitleId: playFabTitleId,
+  CustomId: uid,
+  CreateAccount: true
+}, (res) => {
+  console.log("✅ Logged into PlayFab");
+
+  // 🆕 Set Telegram username or first name as display name
+  const displayName = params.get("username") || params.get("first_name") || ("Player_" + uid.slice(0,6));
+
+  PlayFabClientSDK.UpdateUserTitleDisplayName({
+    DisplayName: displayName
+  }, (r) => console.log("✅ Display name updated:", r.data.DisplayName),
+     (err) => console.error("❌ Failed to set display name:", err));
+
+}, (err) => console.error("❌ Login failed", err));
+
 
 /* ---------- sizing & canvas ---------- */
 const isMobile=/Mobi|Android/i.test(navigator.userAgent);
@@ -129,7 +143,12 @@ function hitPipe(p){return circleRect(cat.x,cat.y,cat.r,p.x,0,p.w,p.top)||circle
 function die(){if(state==='dead')return;state='dead';beep(220,0.2,'sawtooth',0.08);document.getElementById('finalScore').textContent=String(score);document.getElementById('ovOver').classList.add('show');PlayFabClientSDK.UpdatePlayerStatistics({Statistics:[{StatisticName:"HighScore",Value:score}]},()=>{console.log("✅ Score saved:",score);renderLeaderboard();},err=>console.error("❌ Error saving score:",err));}
 
 /* ---------- leaderboard ---------- */
-function renderLeaderboard(){const status=document.getElementById("lbStatus");const list=document.getElementById("lbList");list.innerHTML="";status.style.display="block";status.textContent="Loading…";PlayFabClientSDK.GetLeaderboard({StatisticName:"HighScore",StartPosition:0,MaxResultsCount:20},res=>{status.style.display="none";list.innerHTML="";if(!res.data||!res.data.Leaderboard.length){list.innerHTML="<li>No scores yet</li>";return;}res.data.Leaderboard.forEach((entry,i)=>{const li=document.createElement("li");li.textContent=`${i+1}. ${entry.DisplayName||entry.PlayFabId}: ${entry.StatValue}`;list.appendChild(li);});},err=>{status.textContent="❌ Error loading scores";console.error("Leaderboard error:",err);});}
+function renderLeaderboard(){const status=document.getElementById("lbStatus");const list=document.getElementById("lbList");list.innerHTML="";status.style.display="block";status.textContent="Loading…";PlayFabClientSDK.GetLeaderboard({StatisticName:"HighScore",StartPosition:0,MaxResultsCount:20},res=>{status.style.display="none";list.innerHTML="";if(!res.data||!res.data.Leaderboard.length){list.innerHTML="<li>No scores yet</li>";return;}res.data.Leaderboard.forEach((entry, i) => {
+  const li = document.createElement("li");
+  li.textContent = `${i + 1}. ${entry.DisplayName || "Anonymous"} — ${entry.StatValue}`;
+  list.appendChild(li);
+});
+},err=>{status.textContent="❌ Error loading scores";console.error("Leaderboard error:",err);});}
 
 /* ---------- helpers ---------- */
 function circleRect(cx,cy,cr,rx,ry,rw,rh){const tx=Math.max(rx,Math.min(cx,rx+rw));const ty=Math.max(ry,Math.min(cy,ry+rh));const dx=cx-tx,dy=cy-ty;return dx*dx+dy*dy<=cr*cr;}
