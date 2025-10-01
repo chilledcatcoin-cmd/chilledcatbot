@@ -191,10 +191,6 @@ res.data.Leaderboard.forEach((entry,i)=>{
   });
 }
 
-
-/* ---------- leaderboard ---------- */
-function renderLeaderboard(){const status=document.getElementById("lbStatus");const list=document.getElementById("lbList");list.innerHTML="";status.style.display="block";status.textContent="Loading…";PlayFabClientSDK.GetLeaderboard({StatisticName:"FlappyCatScore",StartPosition:0,MaxResultsCount:20},res=>{status.style.display="none";list.innerHTML="";if(!res.data||!res.data.Leaderboard.length){list.innerHTML="<li>No scores yet</li>";return;}res.data.Leaderboard.forEach((entry,i)=>{const li=document.createElement("li");li.textContent=`${i+1}. ${entry.DisplayName||entry.PlayFabId}: ${entry.StatValue}`;list.appendChild(li);});},err=>{status.textContent="❌ Error loading scores";console.error("Leaderboard error:",err);});}
-
 /* ---------- helpers ---------- */
 function circleRect(cx,cy,cr,rx,ry,rw,rh){const tx=Math.max(rx,Math.min(cx,rx+rw));const ty=Math.max(ry,Math.min(cy,ry+rh));const dx=cx-tx,dy=cy-ty;return dx*dx+dy*dy<=cr*cr;}
 function draw(){for(const p of pipes)drawPipe(p);ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--grass');ctx.fillRect(0,VH-GROUND_H,VW,20);ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--ground');ctx.fillRect(0,VH-GROUND_H+20,VW,GROUND_H-20);ctx.save();ctx.translate(cat.x,cat.y);ctx.rotate(cat.rot);if(catImgReady){ctx.drawImage(catImg,-36,-36,72,72);}else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,28,0,Math.PI*2);ctx.fill();}ctx.restore();if(state==='playing'){ctx.fillStyle='rgba(255,255,255,.85)';ctx.strokeStyle='rgba(0,0,0,.25)';ctx.lineWidth=6;ctx.font='900 56px system-ui';ctx.textAlign='center';ctx.strokeText(String(score),VW/2,90);ctx.fillText(String(score),VW/2,90);}}
