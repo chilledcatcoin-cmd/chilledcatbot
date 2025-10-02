@@ -113,6 +113,7 @@
           <div class="stat">😼 Safe: <b id="remaining">0</b></div>
           <div class="stat">🏁 Flags: <b id="flags">0</b></div>
           <div class="stat" title="Best local time">🏆 Best: <b id="best">—</b></div>
+          <div class="stat">⭐ Score: <b id="points">0</b></div>
         </div>
       </div>
       <div class="board-wrap">
@@ -138,324 +139,108 @@
   </div>
 
 <script>
-/* =====================================================
-   Telegram Web + PlayFab wiring (same style as Flappy Cat)
-   - Reads ?uid, ?username, ?contest
-   - Logs in to PlayFab (TitleId below)
-   - Saves score: score = floor(100000 / timeMs)  (bigger = better)
-   - Global stat name: "CatSweeperScore"
-   - Contest stat name: contestKey (from URL param)
-   - Shows Top 10 on game over
-   ===================================================== */
 (function(){
   const params = new URLSearchParams(location.search);
   const uid = params.get("uid") || crypto.randomUUID();
   const username = params.get("username") || "Anonymous";
-  const contestKey = params.get("contest"); // if present, use contest leaderboard
-  const playFabTitleId = "B4195"; // same as your Flappy Cat example
+  const contestKey = params.get("contest");
+  const playFabTitleId = "B4195";
   PlayFab.settings.titleId = playFabTitleId;
 
-  // Login + set display name (best-effort)
-PlayFabClientSDK.LoginWithCustomID({
-  TitleId: playFabTitleId,
-  CustomId: uid,
-  CreateAccount: true
-}, () => {
-  PlayFabClientSDK.UpdateUserTitleDisplayName({
-    DisplayName: username
-  }, res => {
-    console.log("✅ DisplayName set:", res.data.DisplayName);
-    initGame();
-  }, err => {
-    if (err.error === "NameNotAvailable") {
-      const fallback = (username || "Player") + "_" + uid.slice(-4);
-      PlayFabClientSDK.UpdateUserTitleDisplayName({
-        DisplayName: fallback
-      }, () => initGame(), () => initGame());
-    } else {
-      initGame();
-    }
-  });
-}, () => initGame());
+  PlayFabClientSDK.LoginWithCustomID({ TitleId: playFabTitleId, CustomId: uid, CreateAccount: true },
+    () => PlayFabClientSDK.UpdateUserTitleDisplayName({ DisplayName: username }, () => initGame(), () => initGame()),
+    () => initGame()
+  );
 
-  /* ========= Game logic (9x9 fixed) ========= */
   function initGame(){
-    // Stickers verify (same as your version)
-    const DIAG = document.getElementById('diag');
-    const FALLBACK_DATA_URI = "data:image/svg+xml;utf8,"+
-      encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='#163258'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Verdana' font-size='28' fill='#fff'>😺</text></svg>`);
-    const defaults = [
-      './images/premium_sticker1.webp',
-      './images/premium_sticker2.webp',
-      './images/premium_sticker3.webp',
-      './images/premium_sticker4.webp'
-    ];
-    let AVAILABLE = [];
-    let MISSING = [];
-    function preloadAndVerify(src){
-      return new Promise(resolve=>{
-        const im = new Image();
-        im.onload = ()=> resolve({src, ok:true});
-        im.onerror = ()=> resolve({src, ok:false});
-        im.src = src;
-      });
-    }
-    function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
-    function updateDiag(){
-      if(MISSING.length){
-        DIAG.style.display = 'block';
-        DIAG.innerHTML = `⚠️ Some sticker images failed to load.<br><b>Missing</b>:<br><code>${MISSING.map(x=>escapeHtml(x)).join('<br>')}</code>`;
-      } else {
-        DIAG.style.display = 'none';
-        DIAG.textContent='';
-      }
-    }
-    Promise.all(defaults.map(preloadAndVerify)).then(list=>{
-      AVAILABLE = list.filter(r=>r.ok).map(r=>r.src);
-      MISSING = list.filter(r=>!r.ok).map(r=>r.src);
-      if(!AVAILABLE.length) AVAILABLE = [FALLBACK_DATA_URI];
-      updateDiag();
-    });
-
-    // DOM refs
     const boardEl = document.getElementById('board');
     const timeEl = document.getElementById('time');
     const remainingEl = document.getElementById('remaining');
     const flagsEl = document.getElementById('flags');
     const bestEl = document.getElementById('best');
+    const pointsEl = document.getElementById('points');
     const newBtn = document.getElementById('newGame');
     const overlay = document.getElementById('overlay');
     const againBtn = document.getElementById('again');
     const resultTitle = document.getElementById('resultTitle');
     const resultBody = document.getElementById('resultBody');
-    const resultImage = document.getElementById('resultImage');
     const lbList = document.getElementById('lbList');
     const lbStatus = document.getElementById('lbStatus');
 
-    // Fixed beginner
     let cols=9, rows=9, mines=10;
-    let firstReveal = true; let timer=0, raf=null, running=false; let flags=0, safeRemaining=0;
+    let firstReveal = true, timer=0, raf=null, running=false;
+    let flags=0, safeRemaining=0, score=0;
     let grid=[], revealed=[], flagged=[], counts=[], minesSet=new Set();
 
-    function key(r,c){ return r+','+c; }
-    function inBounds(r,c){ return r>=0 && r<rows && c>=0 && c<cols; }
-    function forNeighbors(r,c,fn){ for(let dr=-1; dr<=1; dr++) for(let dc=-1; dc<=1; dc++) if(dr||dc){ const nr=r+dr,nc=c+dc; if(inBounds(nr,nc)) fn(nr,nc); } }
-    function cssCols(){ boardEl.style.setProperty('grid-template-columns', `repeat(${cols}, var(--tile))`); }
-
-    function resetState(){
-      grid = Array.from({length: rows}, () => Array(cols).fill(0));
-      counts = Array.from({length: rows}, () => Array(cols).fill(0));
-      revealed = Array.from({length: rows}, () => Array(cols).fill(false));
-      flagged = Array.from({length: rows}, () => Array(cols).fill(false));
-      minesSet.clear(); firstReveal = true; flags = 0; running=false; timer=0; updateTimer();
-      safeRemaining = rows*cols - mines; updateCounters();
-    }
-    function placeMines(excludeR, excludeC){
-      const spots=[];
-      for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-        if(Math.abs(r-excludeR)<=1 && Math.abs(c-excludeC)<=1) continue;
-        spots.push({r,c});
-      }
-      for(let i=spots.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [spots[i],spots[j]]=[spots[j],spots[i]]; }
-      for(let i=0;i<mines && i<spots.length;i++){ const {r,c}=spots[i]; grid[r][c]=1; minesSet.add(key(r,c)); }
-      for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) if(!grid[r][c]){ let n=0; forNeighbors(r,c,(nr,nc)=>{ if(grid[nr][nc]) n++; }); counts[r][c]=n; }
-    }
-    function buildBoard(){
-      boardEl.innerHTML=''; cssCols();
-      const frag = document.createDocumentFragment();
-      for(let r=0;r<rows;r++){
-        for(let c=0;c<cols;c++){
-          const cell=document.createElement('div');
-          cell.className='cell hidden';
-          cell.setAttribute('role','gridcell');
-          cell.setAttribute('aria-label','hidden');
-          cell.dataset.r=r; cell.dataset.c=c;
-          frag.appendChild(cell);
-        }
-      }
-      boardEl.appendChild(frag);
-    }
-
     function updateTimer(){ timeEl.textContent = timer.toFixed(1); }
-    function updateCounters(){ remainingEl.textContent = safeRemaining; flagsEl.textContent = flags; bestEl.textContent = bestTimeLabel(); }
-    function startTimer(){ if(running) return; running=true; function step(now){ timer += (now - (step.last||now))/1000; step.last=now; updateTimer(); if(running) raf=requestAnimationFrame(step); } raf=requestAnimationFrame(step); }
-    function stopTimer(){ running=false; cancelAnimationFrame(raf); }
+    function updateCounters(){ remainingEl.textContent = safeRemaining; flagsEl.textContent = flags; bestEl.textContent = bestTimeLabel(); pointsEl.textContent = score; }
+    function addScore(amount){ score = Math.max(0, score+amount); pointsEl.textContent = score; }
 
     function reveal(r,c){
       if(!inBounds(r,c) || revealed[r][c] || flagged[r][c]) return;
       if(firstReveal){ placeMines(r,c); firstReveal=false; startTimer(); }
-      const cellEl = at(r,c);
-      revealed[r][c]=true; cellEl.classList.remove('hidden'); cellEl.classList.add('revealed'); cellEl.setAttribute('aria-label','revealed');
+      revealed[r][c]=true;
+      const cellEl=at(r,c);
+      cellEl.classList.remove('hidden'); cellEl.classList.add('revealed');
       if(grid[r][c]){ showMine(cellEl); gameOver(false); return; }
       safeRemaining--; updateCounters();
-      const n = counts[r][c];
-      if(n>0){ cellEl.textContent=n; cellEl.classList.add('num'+n); }
-      else{ forNeighbors(r,c,(nr,nc)=>{ reveal(nr,nc); }); }
-      autoOpenAround(r,c);
+      addScore(50 + Math.max(0,200-Math.floor(timer))); // base + time bonus
+      if(counts[r][c]>0){ cellEl.textContent=counts[r][c]; cellEl.classList.add('num'+counts[r][c]); }
+      else{ forNeighbors(r,c,(nr,nc)=>reveal(nr,nc)); }
       if(safeRemaining===0) gameOver(true);
     }
-    function autoOpenAround(r,c){
-      const n = counts[r][c]; if(!revealed[r][c] || n===0) return;
-      let f=0; forNeighbors(r,c,(nr,nc)=>{ if(flagged[nr][nc]) f++; });
-      if(f===n){ forNeighbors(r,c,(nr,nc)=>{ if(!flagged[nr][nc]) reveal(nr,nc); }); }
-    }
+
     function toggleFlag(r,c){
-      if(!inBounds(r,c) || revealed[r][c]) return;
-      const cellEl = at(r,c);
-      flagged[r][c] = !flagged[r][c];
-      if(flagged[r][c]){ flags++; cellEl.classList.add('flag'); cellEl.innerHTML = '<span class="flag-icon">🚩</span>'; cellEl.setAttribute('aria-label','flag'); }
-      else { flags--; cellEl.classList.remove('flag'); cellEl.textContent=''; cellEl.setAttribute('aria-label','hidden'); }
+      if(!inBounds(r,c)||revealed[r][c]) return;
+      flagged[r][c]=!flagged[r][c];
+      const cellEl=at(r,c);
+      if(flagged[r][c]){ flags++; cellEl.classList.add('flag'); cellEl.innerHTML='🚩'; if(grid[r][c]) addScore(20); }
+      else { flags--; cellEl.classList.remove('flag'); cellEl.textContent=''; }
       updateCounters();
     }
-    function showMine(cellEl){
-      cellEl.classList.add('mine'); cellEl.innerHTML='';
-      const im = document.createElement('img'); im.className='mine-icon';
-      const pick = (AVAILABLE.length ? AVAILABLE[(Math.random()*AVAILABLE.length)|0] : FALLBACK_DATA_URI);
-      im.src = pick; im.alt='Chilled Cat';
-      im.onerror = () => { cellEl.textContent='😺'; };
-      cellEl.appendChild(im);
-    }
-    function revealAllMines(){
-      minesSet.forEach(id=>{
-        const [r,c]=id.split(',').map(Number);
-        const el=at(r,c);
-        if(!revealed[r][c]){
-          revealed[r][c]=true;
-          el.classList.remove('hidden'); el.classList.add('revealed');
-          showMine(el);
-        }
-      });
-    }
-    function at(r,c){ return boardEl.children[r*cols + c]; }
-
-    function bestKey(){ return `catsweeper_best_9x9x10`; }
-    function bestTimeLabel(){ const v = +localStorage.getItem(bestKey()); return v ? v.toFixed(1)+'s' : '—'; }
-    function recordBest(){ const k = bestKey(); const prev = +localStorage.getItem(k) || Infinity; if(timer < prev){ localStorage.setItem(k, String(timer)); } }
 
     function gameOver(win){
-      stopTimer(); if(!win) revealAllMines();
-      resultTitle.textContent = win ? 'You win! 😺' : 'Boom! 🐾';
-      resultTitle.className = win ? 'good' : 'bad';
-      resultBody.textContent = win ? `Cleared in ${timer.toFixed(1)}s` : 'A horde of chilled cats overran the board!';
-
-      // popup image
-      const pick = (AVAILABLE.length ? AVAILABLE[(Math.random()*AVAILABLE.length)|0] : FALLBACK_DATA_URI);
-      resultImage.src = pick;
-      resultImage.style.display = 'block';
-      resultImage.onerror = () => { resultImage.style.display = 'none'; };
-
-      if(win) { recordBest(); updateCounters(); }
-
-// Save score to PlayFab (higher = better)
-const timeMs = Math.max(1, Math.round(timer * 1000));
-const score = Math.floor(100000 / timeMs);
-
-PlayFabClientSDK.GetPlayerStatistics({}, res => {
-  const prev = res.data.Statistics.find(s => s.StatisticName === "CatSweeperScore")?.Value || 0;
-  const statsToSave = [];
-
-  // Update if new score is better
-  if (score > prev) {
-    statsToSave.push({ StatisticName:"CatSweeperScore", Value: score });
-  }
-
-  // Contest leaderboard (if active)
-  if (contestKey) {
-    const prevContest = res.data.Statistics.find(s => s.StatisticName === contestKey)?.Value || 0;
-    if (score > prevContest) {
-      statsToSave.push({ StatisticName: contestKey, Value: score });
-    }
-  }
-
-  if (statsToSave.length > 0) {
-    PlayFabClientSDK.UpdatePlayerStatistics({ Statistics: statsToSave }, () => {
-      console.log("✅ Scores saved:", statsToSave);
-      renderLeaderboard();
-    }, err => {
-      console.error("❌ Error saving score:", err);
-      renderLeaderboard();
-    });
-  } else {
-    console.log("ℹ️ Score not higher, skipping update");
-    renderLeaderboard();
-  }
-}, err => {
-  console.error("❌ Could not fetch player stats", err);
-  renderLeaderboard();
-});
-
-
+      stopTimer();
+      if(win) addScore(1000);
+      saveScore();
       overlay.classList.add('show');
     }
 
+    function saveScore(){
+      const statsToSave=[{StatisticName:"CatSweeperScore",Value:score}];
+      if(contestKey) statsToSave.push({StatisticName:contestKey,Value:score});
+      PlayFabClientSDK.UpdatePlayerStatistics({Statistics:statsToSave},()=>renderLeaderboard(),()=>renderLeaderboard());
+    }
+
     function renderLeaderboard(){
-      lbList.innerHTML = ""; lbStatus.style.display = "block"; lbStatus.textContent = "Loading…";
-      const statName = contestKey ? contestKey : "CatSweeperScore";
-      PlayFabClientSDK.GetLeaderboard({
-        StatisticName: statName,
-        StartPosition: 0,
-        MaxResultsCount: 10
-      }, res => {
-        lbStatus.style.display = "none";
-        lbList.innerHTML = "";
-        const rows = res?.data?.Leaderboard || [];
-        if (!rows.length){
-          lbList.innerHTML = "<li>No scores yet</li>";
-          return;
-        }
-        rows.forEach((entry, idx) => {
-          const name = entry.DisplayName && !/^\d+$/.test(entry.DisplayName) ? entry.DisplayName : "Anonymous";
-          const score = entry.StatValue|0;
-          // Reconstruct approximate time for display: timeMs ≈ floor(100000 / score)
-          const timeMs = score > 0 ? Math.floor(100000 / score) : 0;
-          const secs = (timeMs/1000).toFixed(1);
-          const li = document.createElement("li");
-          li.textContent = `${idx+1}. ${name} — ${secs}s`;
+      lbList.innerHTML=""; lbStatus.style.display="block"; lbStatus.textContent="Loading…";
+      PlayFabClientSDK.GetLeaderboard({StatisticName:contestKey||"CatSweeperScore",StartPosition:0,MaxResultsCount:10},res=>{
+        lbStatus.style.display="none"; lbList.innerHTML="";
+        (res?.data?.Leaderboard||[]).forEach((e,i)=>{
+          const name=e.DisplayName||"Anonymous";
+          const li=document.createElement("li");
+          li.textContent=`${i+1}. ${name} — ${e.StatValue} pts`;
           lbList.appendChild(li);
         });
-      }, err => {
-        lbStatus.textContent = "❌ Error loading leaderboard";
-        console.error("Leaderboard error:", err);
-      });
+      },()=>{lbStatus.textContent="❌ Error";});
     }
 
-    function newGame(){
-      resetState(); buildBoard(); updateCounters();
-      resultImage.style.display = 'none';
-      overlay.classList.remove('show');
-    }
+    function newGame(){ resetState(); buildBoard(); updateCounters(); overlay.classList.remove('show'); }
+    // Helpers
+    function key(r,c){return r+','+c;} function inBounds(r,c){return r>=0&&r<rows&&c>=0&&c<cols;} function at(r,c){return boardEl.children[r*cols+c];}
+    function resetState(){grid=Array.from({length:rows},()=>Array(cols).fill(0));counts=Array.from({length:rows},()=>Array(cols).fill(0));revealed=Array.from({length:rows},()=>Array(cols).fill(false));flagged=Array.from({length:rows},()=>Array(cols).fill(false));minesSet.clear();firstReveal=true;flags=0;timer=0;score=0;running=false;safeRemaining=rows*cols-mines;updateCounters();}
+    function placeMines(er,ec){const spots=[];for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(Math.abs(r-er)>1||Math.abs(c-ec)>1)spots.push({r,c});for(let i=spots.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[spots[i],spots[j]]=[spots[j],spots[i]];}for(let i=0;i<mines;i++){const{r,c}=spots[i];grid[r][c]=1;minesSet.add(key(r,c));}for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(!grid[r][c]){let n=0;forNeighbors(r,c,(nr,nc)=>{if(grid[nr][nc])n++;});counts[r][c]=n;}}
+    function buildBoard(){boardEl.innerHTML='';boardEl.style.gridTemplateColumns=`repeat(${cols},var(--tile))`;for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const cell=document.createElement('div');cell.className='cell hidden';cell.dataset.r=r;cell.dataset.c=c;boardEl.appendChild(cell);}}
+    function forNeighbors(r,c,fn){for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++)if(dr||dc){const nr=r+dr,nc=c+dc;if(inBounds(nr,nc))fn(nr,nc);}}
+    function startTimer(){if(running)return;running=true;function step(now){timer+=(now-(step.last||now))/1000;step.last=now;updateTimer();if(running)raf=requestAnimationFrame(step);}raf=requestAnimationFrame(step);} function stopTimer(){running=false;cancelAnimationFrame(raf);}
 
-    // Events (tap/long-press/right-click)
-    boardEl.addEventListener('contextmenu', e=>{ e.preventDefault(); });
-    boardEl.addEventListener('mousedown', (e)=>{
-      const cell = e.target.closest('.cell'); if(!cell) return;
-      const r=+cell.dataset.r,c=+cell.dataset.c;
-      if(e.button===2) toggleFlag(r,c); else if(e.button===0) reveal(r,c);
-    });
-    let touchTimer=null, touchCell=null;
-    boardEl.addEventListener('touchstart',(e)=>{
-      const cell = e.target.closest('.cell'); if(!cell) return; e.preventDefault();
-      touchCell = cell;
-      touchTimer = setTimeout(()=>{
-        const r=+cell.dataset.r,c=+cell.dataset.c; toggleFlag(r,c); touchTimer=null;
-      }, 420);
-    }, {passive:false});
-    boardEl.addEventListener('touchend',(e)=>{
-      e.preventDefault();
-      const cell = touchCell; if(!cell) return;
-      const r=+cell.dataset.r,c=+cell.dataset.c;
-      if(touchTimer){ clearTimeout(touchTimer); touchTimer=null; reveal(r,c); }
-      touchCell=null;
-    }, {passive:false});
-
-    newBtn.addEventListener('click', newGame);
-    againBtn.addEventListener('click', newGame);
-    window.addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='r'){ newGame(); } });
-
-    // init
+    boardEl.addEventListener('mousedown',e=>{const cell=e.target.closest('.cell');if(!cell)return;const r=+cell.dataset.r,c=+cell.dataset.c;if(e.button===2)toggleFlag(r,c);else if(e.button===0)reveal(r,c);});
+    boardEl.addEventListener('contextmenu',e=>e.preventDefault());
+    newBtn.onclick=newGame; againBtn.onclick=newGame;
     newGame();
   }
 })();
 </script>
 </body>
 </html>
+
