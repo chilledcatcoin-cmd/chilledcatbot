@@ -1,4 +1,52 @@
 <!DOCTYPE html>
+<!--
+/**
+ *
+ *    _______   .---.  .---..-./`)   .---.     .---.       .-''-.   ______     
+ *   /   __  \  |   |  |_ _|\ .-.')  | ,_|     | ,_|     .'_ _   \ |    _ `''. 
+ *  | ,_/  \__) |   |  ( ' )/ `-' \,-./  )   ,-./  )    / ( ` )   '| _ | ) _  \
+ *,-./  )       |   '-(_{;}_)`-'`"`\  '_ '`) \  '_ '`) . (_ o _)  ||( ''_'  ) |
+ *\  '_ '`)     |      (_,_) .---.  > (_)  )  > (_)  ) |  (_,_)___|| . (_) `. |
+ * > (_)  )  __ | _ _--.   | |   | (  .  .-' (  .  .-' '  \   .---.|(_    ._) '
+ *(  .  .-'_/  )|( ' ) |   | |   |  `-'`-'|___`-'`-'|___\  `-'    /|  (_.\.' / 
+ * `-'`-'     / (_{;}_)|   | |   |   |        \|        \\       / |       .'  
+ *   `._____.'  '(_,_) '---' '---'   `--------``--------` `'-..-'  '-----'`    
+ *                                                                           
+ *                   +=*          ***	    _______      ____   ,---------. 			              
+ *                  *:::*        *=.:*	   /   __  \   .'  __ `.\          \	             
+ *                 *.::::+      *:.:::*     | ,_/  \__) /   '  \  \`--.  ,---'         
+ *                 +....+*++**++::::::=*  ,-./  )       |___|  /  |   |   \       
+ *               *+++=:.:::::.:..:.::::*  \  '_ '`)        _.-`   |   :_ _:            
+ *                ++++=--=+=-+:=+++++++=+  > (_)  )  __ .'   _    |   (_I_)        
+ *               *:+..##.:++::+++***=++*  (  .  .-'_/  )|  _( )_  |  (_(=)_)   
+ *               *..*....-+:::++..#:..=+   `-'`-'     / \ (_ o _) /   (_I_)   
+ *               *........+::.+.:++*+..*     `._____.'   '.(_,_).'    '---'
+ *               *...*+:.:::::-....:...+           
+ *               *....*....:=.....::...**:**=*     
+ *               *.....+=...+...-:....-*::+=:+*-*  
+ *                +....+**+**+****.:=+*+.=*:=*.:*  
+ *              **+....=-:####%:+...*.+::::.*=:*   
+ *           *:..=*++=..:+=:::=*....*...*::..:*    
+ *         *+.:+......:+.......:+*-:=+.......*     
+ *         *.=-........:=............:+:...:**     [ chilled cat warez ]       /\_/\         
+ *        *:-=...=...*.++.............*::::*.*     nfo: vibes • meow • zzz    ( o.o )        
+ *        *.*....*::.**:.............*-.:::+.*     rel: 1997 // TON forever    > ^ <         
+ *        *:=....=**+:...........::..*.....+:*     
+ *        **.....+*::=+::.::.....:*:**..:..+:*     
+ *        **.....+:-+*:.:+::::**:-=::+.....+:*     
+ *
+ * =====================================================
+ *  CatSweeper '97 - Chilled Cat Minesweeper
+ *   Version: 1.0.0
+ *   Date: 2025-10-01
+ *   Author: Chilled Cat Team
+ *  
+ *   Changelog:
+ *   v 1.0.0 - Ported to Telegram
+ * =====================================================
+ */
+-->
+
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -108,13 +156,27 @@
   PlayFab.settings.titleId = playFabTitleId;
 
   // Login + set display name (best-effort)
-  PlayFabClientSDK.LoginWithCustomID({
-    TitleId: playFabTitleId,
-    CustomId: uid,
-    CreateAccount: true
-  }, () => {
-    PlayFabClientSDK.UpdateUserTitleDisplayName({ DisplayName: username }, () => initGame(), () => initGame());
-  }, () => initGame());
+PlayFabClientSDK.LoginWithCustomID({
+  TitleId: playFabTitleId,
+  CustomId: uid,
+  CreateAccount: true
+}, () => {
+  PlayFabClientSDK.UpdateUserTitleDisplayName({
+    DisplayName: username
+  }, res => {
+    console.log("✅ DisplayName set:", res.data.DisplayName);
+    initGame();
+  }, err => {
+    if (err.error === "NameNotAvailable") {
+      const fallback = (username || "Player") + "_" + uid.slice(-4);
+      PlayFabClientSDK.UpdateUserTitleDisplayName({
+        DisplayName: fallback
+      }, () => initGame(), () => initGame());
+    } else {
+      initGame();
+    }
+  });
+}, () => initGame());
 
   /* ========= Game logic (9x9 fixed) ========= */
   function initGame(){
@@ -284,19 +346,44 @@
 
       if(win) { recordBest(); updateCounters(); }
 
-      // Save score to PlayFab (higher is better: score = floor(100000 / timeMs))
-      const timeMs = Math.max(1, Math.round(timer * 1000));
-      const score = Math.floor(100000 / timeMs);
+// Save score to PlayFab (higher = better)
+const timeMs = Math.max(1, Math.round(timer * 1000));
+const score = Math.floor(100000 / timeMs);
 
-      const statsToSave = [{ StatisticName:"CatSweeperScore", Value: score }];
-      if (contestKey) { statsToSave.push({ StatisticName: contestKey, Value: score }); }
+PlayFabClientSDK.GetPlayerStatistics({}, res => {
+  const prev = res.data.Statistics.find(s => s.StatisticName === "CatSweeperScore")?.Value || 0;
+  const statsToSave = [];
 
-      PlayFabClientSDK.UpdatePlayerStatistics({ Statistics: statsToSave }, () => {
-        renderLeaderboard();
-      }, err => {
-        console.warn("Score save failed:", err);
-        renderLeaderboard(); // still show
-      });
+  // Update if new score is better
+  if (score > prev) {
+    statsToSave.push({ StatisticName:"CatSweeperScore", Value: score });
+  }
+
+  // Contest leaderboard (if active)
+  if (contestKey) {
+    const prevContest = res.data.Statistics.find(s => s.StatisticName === contestKey)?.Value || 0;
+    if (score > prevContest) {
+      statsToSave.push({ StatisticName: contestKey, Value: score });
+    }
+  }
+
+  if (statsToSave.length > 0) {
+    PlayFabClientSDK.UpdatePlayerStatistics({ Statistics: statsToSave }, () => {
+      console.log("✅ Scores saved:", statsToSave);
+      renderLeaderboard();
+    }, err => {
+      console.error("❌ Error saving score:", err);
+      renderLeaderboard();
+    });
+  } else {
+    console.log("ℹ️ Score not higher, skipping update");
+    renderLeaderboard();
+  }
+}, err => {
+  console.error("❌ Could not fetch player stats", err);
+  renderLeaderboard();
+});
+
 
       overlay.classList.add('show');
     }
