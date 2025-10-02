@@ -83,9 +83,19 @@
   .num5{color:#ffa3ff}.num6{color:#c4ffd9}.num7{color:#fff}.num8{color:#d6e2ff}
   .mine-icon{width:80%;height:80%;object-fit:contain;image-rendering:auto;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
   .flag-icon{font-size:16px}
-  .overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(6,12,22,.76);z-index:5}
+  .overlay{position:fixed;inset:0;display:flex;place-items:center;background:rgba(6,12,22,.76);z-index:5}
   .overlay.show{display:grid}
-  .modal{background:linear-gradient(var(--bg1), var(--bg2));border:4px ridge var(--edge);border-radius:10px;padding:16px 18px;text-align:center;width:min(92vw,440px)}
+.modal {
+  background: linear-gradient(var(--bg1), var(--bg2));
+  border: 4px ridge var(--edge);
+  border-radius: 10px;
+  padding: 16px 18px;
+  text-align: center;
+  width: min(92vw, 420px);
+  max-height: 90vh;          /* fit within screen */
+  overflow-y: auto;          /* scroll if too tall */
+  box-sizing: border-box;
+}
   .good{color:var(--good)}.bad{color:var(--bad)}
   .result-img{display:block;max-width:140px;margin:8px auto;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.6)}
   .footer{padding:8px 10px;text-align:center;font-size:12px;opacity:.9}
@@ -387,9 +397,9 @@
         if(!rows.length){ lbList.innerHTML="<li>No scores yet</li>"; return; }
         rows.forEach((entry, i)=>{
           let name = entry.DisplayName && !/^\d+$/.test(entry.DisplayName) ? entry.DisplayName : "Anonymous";
-          const li=document.createElement("li");
-          li.textContent = `${i+1}. ${name} — ${entry.StatValue} pts`;
-          lbList.appendChild(li);
+const li = document.createElement("li");
+li.textContent = `${name} — ${score} pts`;
+lbList.appendChild(li);
         });
       }, (err)=>{
         lbStatus.textContent="❌ Error loading leaderboard";
