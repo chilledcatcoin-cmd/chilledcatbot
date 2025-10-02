@@ -144,7 +144,7 @@
   const uid = params.get("uid") || crypto.randomUUID();
   const username = params.get("username") || "Anonymous";
   const contestKey = params.get("contest");
-  const playFabTitleId = "B4195";
+  const playFabTitleId = "FD9EF";
   PlayFab.settings.titleId = playFabTitleId;
 
   PlayFabClientSDK.LoginWithCustomID({ TitleId: playFabTitleId, CustomId: uid, CreateAccount: true },
