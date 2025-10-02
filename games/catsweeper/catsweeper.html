@@ -83,8 +83,18 @@
   .num5{color:#ffa3ff}.num6{color:#c4ffd9}.num7{color:#fff}.num8{color:#d6e2ff}
   .mine-icon{width:80%;height:80%;object-fit:contain;image-rendering:auto;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
   .flag-icon{font-size:16px}
-  .overlay{position:fixed;inset:0;display:flex;place-items:center;background:rgba(6,12,22,.76);z-index:5}
-  .overlay.show{display:grid}
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6,12,22,.76);
+  z-index: 5;
+}
+.overlay.show {
+  display: flex;
+}
 .modal {
   background: linear-gradient(var(--bg1), var(--bg2));
   border: 4px ridge var(--edge);
@@ -395,12 +405,12 @@
         lbStatus.style.display="none"; lbList.innerHTML="";
         const rows = res?.data?.Leaderboard || [];
         if(!rows.length){ lbList.innerHTML="<li>No scores yet</li>"; return; }
-        rows.forEach((entry, i)=>{
-          let name = entry.DisplayName && !/^\d+$/.test(entry.DisplayName) ? entry.DisplayName : "Anonymous";
-const li = document.createElement("li");
-li.textContent = `${name} — ${score} pts`;
-lbList.appendChild(li);
-        });
+rows.forEach(entry => {
+  const name = entry.DisplayName && !/^\d+$/.test(entry.DisplayName) ? entry.DisplayName : "Anonymous";
+  const li = document.createElement("li");
+  li.textContent = `${name} — ${entry.StatValue} pts`;
+  lbList.appendChild(li);
+});
       }, (err)=>{
         lbStatus.textContent="❌ Error loading leaderboard";
         console.error("Leaderboard error:", err);
