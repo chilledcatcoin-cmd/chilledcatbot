@@ -248,8 +248,12 @@ if (isContest && contestEnd > Date.now()) {
       // stop the game and show overlay
       state = "dead";
       document.getElementById("ovOver").classList.add("show");
+document.querySelector("#finalScore").textContent = score;
+document.querySelector(".sub").innerHTML = "<b>Contest Ended!</b><br>Final Score: " + score;
+
       return;
     }
+
     const m = Math.floor(remain / 60000);
     const s = Math.floor((remain % 60000) / 1000);
     timerEl.textContent = `⏳ ${m}:${s.toString().padStart(2, "0")}`;
