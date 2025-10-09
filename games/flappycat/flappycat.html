@@ -128,13 +128,43 @@
 <script>
 (()=>{
 /* ---------- PlayFab Setup ---------- */
-const playFabTitleId = "B4195"; 
+/* ---------- PlayFab Setup ---------- */
+const playFabTitleId = "B4195";
 PlayFab.settings.titleId = playFabTitleId;
+
+// 🔹 Parse URL parameters
 const params = new URLSearchParams(location.search);
-const uid = params.get("uid") || crypto.randomUUID();
-const username = params.get("username") || "Anonymous";
+
+// 🔹 Decode Telegram user info sent from the bot
+let user = {};
+try {
+  user = JSON.parse(decodeURIComponent(params.get("user") || "{}"));
+} catch {
+  user = {};
+}
+
+// 🔹 Build identifiers for PlayFab
+const uid = user.id ? String(user.id) : crypto.randomUUID();
+const username = user.first_name || user.username || "Anonymous";
 const contestKey = params.get("contest"); // active contest leaderboard key
 
+// 🏁 Highlight contest mode if active
+if (contestKey) {
+  const sb = document.getElementById("scorebox");
+  sb.style.background = "#fff2b3";
+  sb.style.border = "2px solid #e2b600";
+  sb.innerHTML = "🏁 Contest Mode — Score: <span id='score'>0</span>";
+}
+
+// ✅ Initialize Telegram WebApp if running inside Telegram
+if (window.Telegram && window.Telegram.WebApp) {
+  try {
+    window.Telegram.WebApp.ready();
+    console.log("📱 Telegram WebApp ready");
+  } catch (e) {
+    console.warn("⚠️ Telegram ready() skipped:", e);
+  }
+}
 
 PlayFabClientSDK.LoginWithCustomID({
   TitleId: playFabTitleId,
