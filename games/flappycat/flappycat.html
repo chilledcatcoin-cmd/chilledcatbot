@@ -84,6 +84,19 @@
   .lb ol{margin:0;padding-left:22px}
   .muted{color:#666;font-size:13px}
 
+.timer {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #000000b3;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-family: monospace;
+  font-size: 14px;
+}
+
   @media (max-width: 480px){
     .gameTitle{font-size:26px}
   }
@@ -95,6 +108,7 @@
 
   <div class="hud">
     <div class="topbar"><button id="btnMute" class="btn">🔊</button></div>
+    <div id="contestTimer" class="timer" style="display:none"></div>
     <div id="scorebox" class="scorebox">Score: <span id="score">0</span></div>
 
     <div id="ovStart" class="overlay show">
@@ -147,6 +161,8 @@ try {
 const uid = user.id ? String(user.id) : crypto.randomUUID();
 const username = user.first_name || user.username || "Anonymous";
 const contestKey = params.get("contest"); // active contest leaderboard key
+const contestEnd = Number(params.get("end") || 0);
+const isContest = Boolean(contestKey && contestEnd);
 
 // 🏁 Highlight contest mode if active
 if (contestKey) {
@@ -220,6 +236,27 @@ const DPR=Math.max(1,Math.floor(window.devicePixelRatio||1));
 let VW=480,VH=720;
 function fit(){const vw=window.innerWidth,vh=window.innerHeight,aspect=3/2;let tw=vw,th=tw*aspect;if(th>vh){th=vh;tw=th/aspect;}VW=tw;VH=th;canvas.style.width=VW+'px';canvas.style.height=VH+'px';canvas.width=Math.floor(VW*DPR);canvas.height=Math.floor(VH*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);}
 fit(); addEventListener('resize',fit);
+/* ---------- contest timer overlay ---------- */
+if (isContest && contestEnd > Date.now()) {
+  const timerEl = document.getElementById("contestTimer");
+  timerEl.style.display = "block";
+
+  const tick = () => {
+    const remain = contestEnd - Date.now();
+    if (remain <= 0) {
+      timerEl.textContent = "🏁 Contest ended!";
+      // stop the game and show overlay
+      state = "dead";
+      document.getElementById("ovOver").classList.add("show");
+      return;
+    }
+    const m = Math.floor(remain / 60000);
+    const s = Math.floor((remain % 60000) / 1000);
+    timerEl.textContent = `⏳ ${m}:${s.toString().padStart(2, "0")}`;
+    requestAnimationFrame(tick);
+  };
+  tick();
+}
 
 /* ---------- audio ---------- */
 let muted=false,audioCtx;
