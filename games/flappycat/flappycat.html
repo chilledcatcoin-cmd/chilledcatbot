@@ -84,6 +84,8 @@
   .lb ol{margin:0;padding-left:22px}
   .muted{color:#666;font-size:13px}
 
+#contestTimer { color: #0a0; font-size: 14px; }
+
 .timer {
   position: absolute;
   top: 10px;
@@ -161,6 +163,34 @@ try {
 const uid = user.id ? String(user.id) : crypto.randomUUID();
 const username = user.first_name || user.username || "Anonymous";
 const contestKey = params.get("contest"); // active contest leaderboard key
+
+// Contest countdown timer
+const endTime = parseInt(params.get("end") || "0");
+if (contestKey && endTime) {
+  const sb = document.getElementById("scorebox");
+  const timerEl = document.createElement("div");
+  timerEl.id = "contestTimer";
+  timerEl.style.fontWeight = "bold";
+  timerEl.style.marginTop = "4px";
+  sb.appendChild(timerEl);
+
+  function updateTimer() {
+    const remaining = endTime - Date.now();
+    if (remaining <= 0) {
+      timerEl.textContent = "🏁 Contest Over!";
+      timerEl.style.color = "#c00";
+      clearInterval(timerInterval);
+      return;
+    }
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    timerEl.textContent = `⏳ ${mins}m ${secs}s remaining`;
+  }
+
+  updateTimer();
+  const timerInterval = setInterval(updateTimer, 1000);
+}
+
 const contestEnd = Number(params.get("end") || 0);
 const isContest = Boolean(contestKey && contestEnd);
 
