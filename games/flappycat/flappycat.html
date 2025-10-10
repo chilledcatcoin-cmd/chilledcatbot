@@ -185,7 +185,7 @@
         </div>
         <div class="row"><button id="btnRestart" class="btn">Restart</button></div>
         <div class="lb">
-          <h3>🏆 Top 7</h3>
+          <h3>🏆 Top 5</h3>
           <ol id="lbList"></ol>
           <div id="lbStatus" class="muted" style="display:none"></div>
         </div>
@@ -517,7 +517,7 @@ if (isMobile) {
     status.textContent = "Loading…";
 
     const statName = contestKey ? contestKey : "FlappyCatScore";
-    PlayFabClientSDK.GetLeaderboard({ StatisticName: statName, StartPosition: 0, MaxResultsCount: 7 },
+    PlayFabClientSDK.GetLeaderboard({ StatisticName: statName, StartPosition: 0, MaxResultsCount: 5 },
       res => {
         status.style.display = "none"; list.innerHTML = "";
         if (!res.data || !res.data.Leaderboard.length) { list.innerHTML = "<li>No scores yet</li>"; return; }
