@@ -12,8 +12,8 @@
  * `-'`-'     / (_{;}_)|   | |   |   |        \|        \\       / |       .'  
  *   `._____.'  '(_,_) '---' '---'   `--------``--------` `'-..-'  '-----'`    
  *                                                                           
- *                   +=*          ***	    _______      ____   ,---------. 			              
- *                  *:::*        *=.:*	   /   __  \   .'  __ `.\          \	             
+ *                   +=*          ***	      _______      ____   ,---------. 			              
+ *                  *:::*        *=.:*	     /   __  \   .'  __ `.\          \	             
  *                 *.::::+      *:.:::*     | ,_/  \__) /   '  \  \`--.  ,---'         
  *                 +....+*++**++::::::=*  ,-./  )       |___|  /  |   |   \       
  *               *+++=:.:::::.:..:.::::*  \  '_ '`)        _.-`   |   :_ _:            
@@ -143,32 +143,29 @@
 
 <script>
 (()=>{
-/* ---------- PlayFab Setup ---------- */
+/* =====================================================
+   CHILLED FLAPPY CAT — FINAL FIXED BUILD v1.2.1
+   • Contest timer safe
+   • Game starts on button / space / tap
+   • Works in Telegram WebView
+   ===================================================== */
+
 /* ---------- PlayFab Setup ---------- */
 const playFabTitleId = "B4195";
 PlayFab.settings.titleId = playFabTitleId;
 
-// 🔹 Parse URL parameters
 const params = new URLSearchParams(location.search);
-
-// 🔹 Decode Telegram user info sent from the bot
 let user = {};
-try {
-  user = JSON.parse(decodeURIComponent(params.get("user") || "{}"));
-} catch {
-  user = {};
-}
+try { user = JSON.parse(decodeURIComponent(params.get("user") || "{}")); } catch { user = {}; }
 
-// 🔹 Build identifiers for PlayFab
 const uid = user.id ? String(user.id) : crypto.randomUUID();
 const username = user.first_name || user.username || "Anonymous";
-const contestKey = params.get("contest"); // active contest leaderboard key
-
+const contestKey = params.get("contest");
+const endTime = parseInt(params.get("end") || "0");
+let contestActive = true;
 window.score = 0;
 
-let contestActive = true;
-const endTime = parseInt(params.get("end") || "0");
-
+/* ---------- Contest Timer ---------- */
 if (contestKey && endTime) {
   const timerBox = document.getElementById("contestTimer");
   timerBox.style.display = "block";
@@ -180,37 +177,26 @@ if (contestKey && endTime) {
     if (remaining <= 0) {
       if (contestActive) {
         contestActive = false;
-
-        // Change score box color + label safely
         const currentScore = window.score || 0;
         sb.style.background = "#ffd6d6";
         sb.style.border = "2px solid #d00";
         sb.innerHTML = "🏁 Contest Ended — Score: <span id='score'>" + currentScore + "</span>";
 
-        // Add a small floating banner on top
         const banner = document.createElement("div");
         banner.textContent = "🏁 Contest Ended — Scores no longer count";
-        banner.style.position = "absolute";
-        banner.style.top = "0";
-        banner.style.left = "0";
-        banner.style.right = "0";
-        banner.style.background = "#d00";
-        banner.style.color = "#fff";
-        banner.style.fontWeight = "bold";
-        banner.style.textAlign = "center";
-        banner.style.padding = "6px 0";
-        banner.style.zIndex = "9999";
-        banner.style.pointerEvents = "none";
+        Object.assign(banner.style, {
+          position: "absolute", top: "0", left: "0", right: "0",
+          background: "#d00", color: "#fff", fontWeight: "bold",
+          textAlign: "center", padding: "6px 0", zIndex: "9999",
+          pointerEvents: "none"
+        });
         document.body.appendChild(banner);
-
-        // Fade out after 10 seconds
         setTimeout(() => {
           banner.style.transition = "opacity 1s ease";
           banner.style.opacity = "0";
           setTimeout(() => banner.remove(), 1000);
         }, 10000);
       }
-
       timerBox.textContent = "🏁 Contest Over!";
       timerBox.style.color = "#c00";
       return;
@@ -221,16 +207,11 @@ if (contestKey && endTime) {
     timerBox.textContent = `⏳ ${mins}m ${secs}s remaining`;
   };
 
-  // Run immediately and every second
   updateTimer();
   setInterval(updateTimer, 1000);
 }
 
-
-const contestEnd = Number(params.get("end") || 0);
-const isContest = Boolean(contestKey && contestEnd);
-
-// 🏁 Highlight contest mode if active
+/* ---------- Highlight Contest Mode ---------- */
 if (contestKey) {
   const sb = document.getElementById("scorebox");
   sb.style.background = "#fff2b3";
@@ -238,200 +219,281 @@ if (contestKey) {
   sb.innerHTML = "🏁 Contest Mode — Score: <span id='score'>0</span>";
 }
 
-// ✅ Initialize Telegram WebApp if running inside Telegram
+/* ---------- Telegram WebApp Ready ---------- */
 if (window.Telegram && window.Telegram.WebApp) {
-  try {
-    window.Telegram.WebApp.ready();
-    console.log("📱 Telegram WebApp ready");
-  } catch (e) {
-    console.warn("⚠️ Telegram ready() skipped:", e);
-  }
+  try { window.Telegram.WebApp.ready(); console.log("📱 Telegram WebApp ready"); }
+  catch (e) { console.warn("⚠️ Telegram ready() skipped:", e); }
 }
 
+/* ---------- PlayFab Login ---------- */
 PlayFabClientSDK.LoginWithCustomID({
   TitleId: playFabTitleId,
   CustomId: uid,
   CreateAccount: true
 }, () => {
   console.log("✅ PlayFab login OK");
+  PlayFabClientSDK.UpdateUserTitleDisplayName({ DisplayName: username },
+    () => initGame(),
+    err => {
+      console.warn("⚠️ Name set failed:", err);
+      if (err.error === "NameNotAvailable") {
+        const fallback = (username || "Player") + "_" + uid.slice(-4);
+        PlayFabClientSDK.UpdateUserTitleDisplayName({ DisplayName: fallback },
+          () => initGame(),
+          () => initGame()
+        );
+      } else initGame();
+    }
+  );
+}, () => initGame());
 
-  // Try setting display name, but don’t block init if it fails
-PlayFabClientSDK.UpdateUserTitleDisplayName({
-  DisplayName: username
-}, res => {
-  if (res && res.data) {
-    console.log("✅ DisplayName set:", res.data.DisplayName);
-  }
-  initGame();
-}, err => {
-  console.warn("⚠️ Couldn’t set DisplayName:", err);
-
-  if (err.error === "NameNotAvailable") {
-    // fallback: append uid fragment so it's unique
-    const fallback = (username || "Player") + "_" + uid.slice(-4);
-    console.log("ℹ️ Retrying with fallback name:", fallback);
-
-    PlayFabClientSDK.UpdateUserTitleDisplayName({
-      DisplayName: fallback
-    }, res2 => {
-      if (res2 && res2.data) {
-        console.log("✅ Fallback DisplayName set:", res2.data.DisplayName);
-      }
-      initGame();
-    }, err2 => {
-      console.error("❌ Fallback name failed too:", err2);
-      initGame();
-    });
-  } else {
-    initGame(); // always continue even if another error
-  }
-});
-
-
-
-}, err => {
-  console.error("❌ PlayFab login failed:", err);
-  initGame(); // still run game offline
-});
-
+/* =====================================================
+   INIT GAME
+   ===================================================== */
 function initGame() {
-/* ---------- sizing & canvas ---------- */
-const isMobile=/Mobi|Android/i.test(navigator.userAgent);
-const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
-const DPR=Math.max(1,Math.floor(window.devicePixelRatio||1));
-let VW=480,VH=720;
-function fit(){const vw=window.innerWidth,vh=window.innerHeight,aspect=3/2;let tw=vw,th=tw*aspect;if(th>vh){th=vh;tw=th/aspect;}VW=tw;VH=th;canvas.style.width=VW+'px';canvas.style.height=VH+'px';canvas.width=Math.floor(VW*DPR);canvas.height=Math.floor(VH*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);}
-fit(); addEventListener('resize',fit);
+  const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+  const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+  const DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+  let VW = 480, VH = 720;
 
-/* ---------- audio ---------- */
-let muted=false,audioCtx;
-function initAudio(){if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch{}}}
-function beep(f=880,d=0.05,t='sine',v=0.1){if(muted||!audioCtx)return;try{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=t;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d);}catch{}}
-document.getElementById('btnMute').onclick=()=>{muted=!muted;document.getElementById('btnMute').textContent=muted?'🔈':'🔊'}
+  function fit() {
+    const vw = window.innerWidth, vh = window.innerHeight, aspect = 3 / 2;
+    let tw = vw, th = tw * aspect;
+    if (th > vh) { th = vh; tw = th / aspect; }
+    VW = tw; VH = th;
+    canvas.style.width = VW + 'px';
+    canvas.style.height = VH + 'px';
+    canvas.width = Math.floor(VW * DPR);
+    canvas.height = Math.floor(VH * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  fit(); addEventListener('resize', fit);
 
-/* ---------- wake lock ---------- */
-let wakeLock=null;
-async function requestWakeLock(){if('wakeLock' in navigator){try{wakeLock=await navigator.wakeLock.request('screen');document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!wakeLock)requestWakeLock();});}catch(e){}}}
+  /* ---------- Audio ---------- */
+  let muted = false, audioCtx;
+  function initAudio() { if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch { } } }
+  function beep(f = 880, d = 0.05, t = 'sine', v = 0.1) {
+    if (muted || !audioCtx) return;
+    try {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = t; o.frequency.value = f; g.gain.value = v;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + d);
+    } catch { }
+  }
+  document.getElementById('btnMute').onclick = () => {
+    muted = !muted;
+    document.getElementById('btnMute').textContent = muted ? '🔈' : '🔊';
+  };
 
-/* ---------- game state ---------- */
-const G=1200,FLAP=420,PIPE_GAP_MIN=150,PIPE_GAP_MAX=210,PIPE_W=70,PIPE_SPACING=220,PIPE_SPEED=160,GROUND_H=60;
-let tPrev = 0, acc = 0, dtFixed = 1/120, state = 'start', score = 0;
-window.score = score;
-
-const catImg=new Image();catImg.src='./images/chilled_cat_fappy.png';let catImgReady=false;catImg.onload=()=>catImgReady=true;
-const cat={x:120,y:200,vy:0,r:28,rot:0};const pipes=[];
-function updateScore(){
-  window.score = score;
-  document.getElementById('score').textContent = score;
-}
-
-function spawnPipes(initial=false){const bx=initial?VW+100:Math.max(VW+10,(pipes.at(-1)?.x||0)+PIPE_SPACING);const gap=PIPE_GAP_MIN+Math.random()*(PIPE_GAP_MAX-PIPE_GAP_MIN);const m=80;const top=m+Math.random()*(VH-GROUND_H-m*2-gap);pipes.push({x:bx,w:PIPE_W,top,gap,passed:false});}
-function fullyReset(){score=0;updateScore();state='playing';cat.x=120;cat.y=VH/2-60;cat.vy=0;cat.rot=0;pipes.length=0;spawnPipes(true);}
-function startGame(){document.getElementById('ovStart').classList.remove('show');fullyReset();requestWakeLock();}
-
-/* ---------- input ---------- */
-if(isMobile){canvas.addEventListener('touchstart',e=>{initAudio();e.preventDefault();if(state==='start'||state==='dead'){startGame();return;}if(state==='playing'){cat.vy=-FLAP;beep(520,0.05,'square',0.06);}}, {passive:false});}
-else{addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();initAudio();if(state==='start'||state==='dead'){startGame();return;}if(state==='playing'){cat.vy=-FLAP;beep(520,0.05,'square',0.06);}}});canvas.addEventListener('click',e=>{initAudio();e.preventDefault();if(state==='start'||state==='dead'){startGame();return;}if(state==='playing'){cat.vy=-FLAP;beep(520,0.05,'square',0.06);}});}
-document.getElementById('btnStart').onclick=()=>{initAudio();startGame();};
-
-/* ---------- restart ---------- */
-document.getElementById('btnRestart').onclick=()=>{document.getElementById('ovOver').classList.remove('show');fullyReset();};
-
-/* ---------- physics / loop ---------- */
-function step(dt){if(state!=='playing')return;cat.vy+=G*dt;cat.y+=cat.vy*dt;cat.rot=Math.atan2(cat.vy,PIPE_SPEED)*0.8;for(const p of pipes)p.x-=PIPE_SPEED*dt;if(!pipes.length||(VW-(pipes.at(-1)?.x||0))>PIPE_SPACING)spawnPipes();while(pipes.length&&pipes[0].x+pipes[0].w<-50)pipes.shift();for(const p of pipes){if(!p.passed&&cat.x>p.x+p.w){p.passed=true;score++;updateScore();beep(800,0.04,'triangle',0.06);}if(hitPipe(p))return die();}if(cat.y+cat.r>VH-GROUND_H||cat.y-cat.r<0)return die();}
-function hitPipe(p){return circleRect(cat.x,cat.y,cat.r,p.x,0,p.w,p.top)||circleRect(cat.x,cat.y,cat.r,p.x,p.top+p.gap,p.w,VH-GROUND_H-(p.top+p.gap));}
-function die(){
-  if(state==='dead') return;
-  state='dead';
-  beep(220,0.2,'sawtooth',0.08);
-  document.getElementById('finalScore').textContent=String(score);
-  document.getElementById('ovOver').classList.add('show');
-
-  // Fetch player’s current high score before overwriting (global)
-  PlayFabClientSDK.GetPlayerStatistics({}, res => {
-    const prev = res.data.Statistics.find(s=>s.StatisticName==="FlappyCatScore")?.Value || 0;
-    const statsToSave = [];
-
-    if (score > prev) {
-      statsToSave.push({ StatisticName:"FlappyCatScore", Value: score });
-    }
-
-if (contestKey) {
-  // 🏁 If contest has expired, don't save
-  if (!contestActive) {
-    console.log("🏁 Contest over — skipping contest score save");
-  } else {
-    const prevContest = res.data.Statistics.find(s => s.StatisticName === contestKey)?.Value || 0;
-    if (score > prevContest) {
-      statsToSave.push({ StatisticName: contestKey, Value: score });
-    } else {
-      console.log("ℹ️ Contest score not higher, skipping update");
+  /* ---------- Wake Lock ---------- */
+  let wakeLock = null;
+  async function requestWakeLock() {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+        });
+      } catch { }
     }
   }
-}
 
+  /* ---------- Game State ---------- */
+  const G = 1200, FLAP = 420, PIPE_GAP_MIN = 150, PIPE_GAP_MAX = 210, PIPE_W = 70, PIPE_SPACING = 220, PIPE_SPEED = 160, GROUND_H = 60;
+  let tPrev = 0, acc = 0, dtFixed = 1 / 120, state = 'start', score = 0;
+  window.score = score;
 
+  const catImg = new Image(); catImg.src = './images/chilled_cat_fappy.png';
+  let catImgReady = false; catImg.onload = () => catImgReady = true;
+  const cat = { x: 120, y: 200, vy: 0, r: 28, rot: 0 };
+  const pipes = [];
 
-    if (statsToSave.length > 0) {
-      PlayFabClientSDK.UpdatePlayerStatistics({ Statistics: statsToSave }, () => {
-        console.log("✅ Scores saved:", statsToSave);
-        renderLeaderboard();
-      }, err=>console.error("❌ Error saving score:",err));
-    } else {
-      console.log("ℹ️ Score not higher, skipping update");
-      renderLeaderboard(); 
-    }
-  }, err=>{
-    console.error("❌ Could not fetch player stats", err);
-    renderLeaderboard();
-  });
-}
+  function updateScore() {
+    window.score = score;
+    document.getElementById('score').textContent = score;
+  }
 
-function renderLeaderboard(){
-  const status = document.getElementById("lbStatus");
-  const list = document.getElementById("lbList");
-  list.innerHTML = "";
-  status.style.display = "block";
-  status.textContent = "Loading…";
+  function spawnPipes(initial = false) {
+    const bx = initial ? VW + 100 : Math.max(VW + 10, (pipes.at(-1)?.x || 0) + PIPE_SPACING);
+    const gap = PIPE_GAP_MIN + Math.random() * (PIPE_GAP_MAX - PIPE_GAP_MIN);
+    const m = 80;
+    const top = m + Math.random() * (VH - GROUND_H - m * 2 - gap);
+    pipes.push({ x: bx, w: PIPE_W, top, gap, passed: false });
+  }
 
-  const statName = contestKey ? contestKey : "FlappyCatScore";
+  function fullyReset() {
+    score = 0; updateScore();
+    state = 'playing';
+    cat.x = 120; cat.y = VH / 2 - 60; cat.vy = 0; cat.rot = 0;
+    pipes.length = 0; spawnPipes(true);
+  }
 
-  PlayFabClientSDK.GetLeaderboard({
-    StatisticName: statName,
-    StartPosition: 0,
-    MaxResultsCount: 10
-  }, res => {
-    status.style.display = "none";
-    list.innerHTML = "";
-    if (!res.data || !res.data.Leaderboard.length) {
-      list.innerHTML = "<li>No scores yet</li>";
-      return;
-    }
+  function startGame() {
+    document.getElementById('ovStart').classList.remove('show');
+    fullyReset(); requestWakeLock();
+  }
 
-    res.data.Leaderboard.forEach(entry => {
-      let name = entry.DisplayName;
-      if (!name || /^\d+$/.test(name)) {
-        name = "Anonymous";
+  /* ---------- Input ---------- */
+  if (isMobile) {
+    canvas.addEventListener('touchstart', e => {
+      initAudio(); e.preventDefault();
+      if (state === 'start' || state === 'dead') { startGame(); return; }
+      if (state === 'playing') { cat.vy = -FLAP; beep(520, 0.05, 'square', 0.06); }
+    }, { passive: false });
+  } else {
+    addEventListener('keydown', e => {
+      if (e.code === 'Space') {
+        e.preventDefault(); initAudio();
+        if (state === 'start' || state === 'dead') { startGame(); return; }
+        if (state === 'playing') { cat.vy = -FLAP; beep(520, 0.05, 'square', 0.06); }
       }
-      const li = document.createElement("li");
-      li.textContent = `${name}: ${entry.StatValue}`;
-      list.appendChild(li);
     });
+    canvas.addEventListener('click', e => {
+      initAudio(); e.preventDefault();
+      if (state === 'start' || state === 'dead') { startGame(); return; }
+      if (state === 'playing') { cat.vy = -FLAP; beep(520, 0.05, 'square', 0.06); }
+    });
+  }
 
-  }, err => {
-    status.textContent = "❌ Error loading scores";
-    console.error("Leaderboard error:", err);
-  });
-}
+  document.getElementById('btnStart').onclick = () => { initAudio(); startGame(); };
+  document.getElementById('btnRestart').onclick = () => {
+    document.getElementById('ovOver').classList.remove('show'); fullyReset();
+  };
 
+  /* ---------- Physics & Loop ---------- */
+  function step(dt) {
+    if (state !== 'playing') return;
+    cat.vy += G * dt; cat.y += cat.vy * dt;
+    cat.rot = Math.atan2(cat.vy, PIPE_SPEED) * 0.8;
 
+    for (const p of pipes) p.x -= PIPE_SPEED * dt;
+    if (!pipes.length || (VW - (pipes.at(-1)?.x || 0)) > PIPE_SPACING) spawnPipes();
+    while (pipes.length && pipes[0].x + pipes[0].w < -50) pipes.shift();
 
-/* ---------- helpers ---------- */
-function circleRect(cx,cy,cr,rx,ry,rw,rh){const tx=Math.max(rx,Math.min(cx,rx+rw));const ty=Math.max(ry,Math.min(cy,ry+rh));const dx=cx-tx,dy=cy-ty;return dx*dx+dy*dy<=cr*cr;}
-function draw(){for(const p of pipes)drawPipe(p);ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--grass');ctx.fillRect(0,VH-GROUND_H,VW,20);ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--ground');ctx.fillRect(0,VH-GROUND_H+20,VW,GROUND_H-20);ctx.save();ctx.translate(cat.x,cat.y);ctx.rotate(cat.rot);if(catImgReady){ctx.drawImage(catImg,-36,-36,72,72);}else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,28,0,Math.PI*2);ctx.fill();}ctx.restore();if(state==='playing'){ctx.fillStyle='rgba(255,255,255,.85)';ctx.strokeStyle='rgba(0,0,0,.25)';ctx.lineWidth=6;ctx.font='900 56px system-ui';ctx.textAlign='center';ctx.strokeText(String(score),VW/2,90);ctx.fillText(String(score),VW/2,90);}}
-function drawPipe(p){const col=getComputedStyle(document.documentElement).getPropertyValue('--pipe');ctx.fillStyle=col;ctx.fillRect(p.x,0,p.w,p.top);ctx.fillRect(p.x-4,p.top-16,p.w+8,16);const by=p.top+p.gap;ctx.fillRect(p.x,by,p.w,VH-GROUND_H-by);ctx.fillRect(p.x-4,by,p.w+8,16);}
-function loop(t){const now=t/1000,dt=tPrev?Math.min(0.05,now-tPrev):0;tPrev=now;if(state==='playing'){acc+=dt;while(acc>=dtFixed){step(dtFixed);acc-=dtFixed;}}ctx.clearRect(0,0,VW,VH);draw();requestAnimationFrame(loop);}requestAnimationFrame(loop);
-document.getElementById('ovStart').classList.add('show');
+    for (const p of pipes) {
+      if (!p.passed && cat.x > p.x + p.w) {
+        p.passed = true; score++; updateScore(); beep(800, 0.04, 'triangle', 0.06);
+      }
+      if (hitPipe(p)) return die();
+    }
+
+    if (cat.y + cat.r > VH - GROUND_H || cat.y - cat.r < 0) return die();
+  }
+
+  function hitPipe(p) {
+    return circleRect(cat.x, cat.y, cat.r, p.x, 0, p.w, p.top) ||
+           circleRect(cat.x, cat.y, cat.r, p.x, p.top + p.gap, p.w, VH - GROUND_H - (p.top + p.gap));
+  }
+
+  function die() {
+    if (state === 'dead') return;
+    state = 'dead'; beep(220, 0.2, 'sawtooth', 0.08);
+    document.getElementById('finalScore').textContent = String(score);
+    document.getElementById('ovOver').classList.add('show');
+
+    PlayFabClientSDK.GetPlayerStatistics({}, res => {
+      const prev = res.data.Statistics.find(s => s.StatisticName === "FlappyCatScore")?.Value || 0;
+      const statsToSave = [];
+      if (score > prev) statsToSave.push({ StatisticName: "FlappyCatScore", Value: score });
+
+      if (contestKey) {
+        if (!contestActive) {
+          console.log("🏁 Contest over — skipping contest score save");
+        } else {
+          const prevContest = res.data.Statistics.find(s => s.StatisticName === contestKey)?.Value || 0;
+          if (score > prevContest) statsToSave.push({ StatisticName: contestKey, Value: score });
+        }
+      }
+
+      if (statsToSave.length > 0) {
+        PlayFabClientSDK.UpdatePlayerStatistics({ Statistics: statsToSave }, renderLeaderboard,
+          err => console.error("❌ Error saving score:", err));
+      } else renderLeaderboard();
+    }, err => { console.error("❌ Could not fetch player stats", err); renderLeaderboard(); });
+  }
+
+  /* ---------- Leaderboard ---------- */
+  function renderLeaderboard() {
+    const status = document.getElementById("lbStatus");
+    const list = document.getElementById("lbList");
+    list.innerHTML = "";
+    status.style.display = "block";
+    status.textContent = "Loading…";
+
+    const statName = contestKey ? contestKey : "FlappyCatScore";
+    PlayFabClientSDK.GetLeaderboard({ StatisticName: statName, StartPosition: 0, MaxResultsCount: 10 },
+      res => {
+        status.style.display = "none"; list.innerHTML = "";
+        if (!res.data || !res.data.Leaderboard.length) { list.innerHTML = "<li>No scores yet</li>"; return; }
+        res.data.Leaderboard.forEach(entry => {
+          let name = entry.DisplayName || "Anonymous";
+          if (/^\d+$/.test(name)) name = "Anonymous";
+          const li = document.createElement("li");
+          li.textContent = `${name}: ${entry.StatValue}`;
+          list.appendChild(li);
+        });
+      },
+      err => { status.textContent = "❌ Error loading scores"; console.error("Leaderboard error:", err); }
+    );
+  }
+
+  /* ---------- Helpers & Loop ---------- */
+  function circleRect(cx, cy, cr, rx, ry, rw, rh) {
+    const tx = Math.max(rx, Math.min(cx, rx + rw));
+    const ty = Math.max(ry, Math.min(cy, ry + rh));
+    const dx = cx - tx, dy = cy - ty;
+    return dx * dx + dy * dy <= cr * cr;
+  }
+
+  function drawPipe(p) {
+    const col = getComputedStyle(document.documentElement).getPropertyValue('--pipe');
+    ctx.fillStyle = col;
+    ctx.fillRect(p.x, 0, p.w, p.top);
+    ctx.fillRect(p.x - 4, p.top - 16, p.w + 8, 16);
+    const by = p.top + p.gap;
+    ctx.fillRect(p.x, by, p.w, VH - GROUND_H - by);
+    ctx.fillRect(p.x - 4, by, p.w + 8, 16);
+  }
+
+  function draw() {
+    for (const p of pipes) drawPipe(p);
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--grass');
+    ctx.fillRect(0, VH - GROUND_H, VW, 20);
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--ground');
+    ctx.fillRect(0, VH - GROUND_H + 20, VW, GROUND_H - 20);
+    ctx.save();
+    ctx.translate(cat.x, cat.y);
+    ctx.rotate(cat.rot);
+    if (catImgReady) ctx.drawImage(catImg, -36, -36, 72, 72);
+    else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+
+    if (state === 'playing') {
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.strokeStyle = 'rgba(0,0,0,.25)';
+      ctx.lineWidth = 6;
+      ctx.font = '900 56px system-ui';
+      ctx.textAlign = 'center';
+      ctx.strokeText(String(score), VW / 2, 90);
+      ctx.fillText(String(score), VW / 2, 90);
+    }
+  }
+
+  function loop(t) {
+    const now = t / 1000, dt = tPrev ? Math.min(0.05, now - tPrev) : 0;
+    tPrev = now;
+    if (state === 'playing') {
+      acc += dt;
+      while (acc >= dtFixed) { step(dtFixed); acc -= dtFixed; }
+    }
+    ctx.clearRect(0, 0, VW, VH);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  requestAnimationFrame(loop);
+  document.getElementById('ovStart').classList.add('show');
 }
 })();
 </script>
