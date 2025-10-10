@@ -164,6 +164,7 @@ const uid = user.id ? String(user.id) : crypto.randomUUID();
 const username = user.first_name || user.username || "Anonymous";
 const contestKey = params.get("contest"); // active contest leaderboard key
 
+window.score = 0;
 
 let contestActive = true;
 const endTime = parseInt(params.get("end") || "0");
@@ -314,10 +315,16 @@ async function requestWakeLock(){if('wakeLock' in navigator){try{wakeLock=await 
 
 /* ---------- game state ---------- */
 const G=1200,FLAP=420,PIPE_GAP_MIN=150,PIPE_GAP_MAX=210,PIPE_W=70,PIPE_SPACING=220,PIPE_SPEED=160,GROUND_H=60;
-let tPrev=0,acc=0,dtFixed=1/120,state='start',score=0;
+let tPrev=0,acc=0,dtFixed=1/120,state='start';
+window.score = 0;
+
 const catImg=new Image();catImg.src='./images/chilled_cat_fappy.png';let catImgReady=false;catImg.onload=()=>catImgReady=true;
 const cat={x:120,y:200,vy:0,r:28,rot:0};const pipes=[];
-function updateScore(){document.getElementById('score').textContent=score;}
+function updateScore(){
+  window.score = score;
+  document.getElementById('score').textContent = score;
+}
+
 function spawnPipes(initial=false){const bx=initial?VW+100:Math.max(VW+10,(pipes.at(-1)?.x||0)+PIPE_SPACING);const gap=PIPE_GAP_MIN+Math.random()*(PIPE_GAP_MAX-PIPE_GAP_MIN);const m=80;const top=m+Math.random()*(VH-GROUND_H-m*2-gap);pipes.push({x:bx,w:PIPE_W,top,gap,passed:false});}
 function fullyReset(){score=0;updateScore();state='playing';cat.x=120;cat.y=VH/2-60;cat.vy=0;cat.rot=0;pipes.length=0;spawnPipes(true);}
 function startGame(){document.getElementById('ovStart').classList.remove('show');fullyReset();requestWakeLock();}
