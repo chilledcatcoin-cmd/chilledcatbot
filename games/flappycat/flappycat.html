@@ -225,6 +225,22 @@ if (window.Telegram && window.Telegram.WebApp) {
   catch (e) { console.warn("⚠️ Telegram ready() skipped:", e); }
 }
 
+/* ---------- Telegram Ready + Focus Fix ---------- */
+if (window.Telegram && window.Telegram.WebApp) {
+  try {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+    console.log("✅ Telegram WebApp ready & expanded");
+    window.focus();
+    document.body.focus();
+    document.getElementById("game")?.focus();
+  } catch (e) {
+    console.warn("⚠️ Telegram WebApp init skipped:", e);
+  }
+} else {
+  console.log("🌐 Running in browser mode");
+}
+
 /* ---------- PlayFab Login ---------- */
 PlayFabClientSDK.LoginWithCustomID({
   TitleId: playFabTitleId,
