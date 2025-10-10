@@ -174,20 +174,46 @@ if (contestKey && endTime) {
   const timerBox = document.getElementById("contestTimer");
   timerBox.style.display = "block";
 
-  function updateTimer() {
-    const remaining = endTime - Date.now();
+function updateTimer() {
+  const remaining = endTime - Date.now();
 
-    if (remaining <= 0) {
-      timerBox.textContent = "🏁 Contest Over!";
-      timerBox.style.color = "#c00";
-      contestActive = false; // ✅ mark contest inactive
-      return;
+  const sb = document.getElementById("scorebox");
+
+  if (remaining <= 0) {
+    if (contestActive) {
+      contestActive = false;
+      // Change score box color + label
+      sb.style.background = "#ffd6d6";
+      sb.style.border = "2px solid #d00";
+      sb.innerHTML = "🏁 Contest Ended — Score: <span id='score'>" + score + "</span>";
+
+      // Add a small floating banner on top
+      const banner = document.createElement("div");
+      banner.textContent = "🏁 Contest Ended — Scores no longer count";
+      banner.style.position = "absolute";
+      banner.style.top = "0";
+      banner.style.left = "0";
+      banner.style.right = "0";
+      banner.style.background = "#d00";
+      banner.style.color = "#fff";
+      banner.style.fontWeight = "bold";
+      banner.style.textAlign = "center";
+      banner.style.padding = "6px 0";
+      banner.style.zIndex = "9999";
+      document.body.appendChild(banner);
     }
 
-    const mins = Math.floor(remaining / 60000);
-    const secs = Math.floor((remaining % 60000) / 1000);
-    timerBox.textContent = `⏳ ${mins}m ${secs}s remaining`;
+    const timerBox = document.getElementById("contestTimer");
+    timerBox.textContent = "🏁 Contest Over!";
+    timerBox.style.color = "#c00";
+    return;
   }
+
+  const mins = Math.floor(remaining / 60000);
+  const secs = Math.floor((remaining % 60000) / 1000);
+  document.getElementById("contestTimer").textContent = `⏳ ${mins}m ${secs}s remaining`;
+}
+
 
   updateTimer();
   setInterval(updateTimer, 1000);
@@ -269,31 +295,6 @@ const DPR=Math.max(1,Math.floor(window.devicePixelRatio||1));
 let VW=480,VH=720;
 function fit(){const vw=window.innerWidth,vh=window.innerHeight,aspect=3/2;let tw=vw,th=tw*aspect;if(th>vh){th=vh;tw=th/aspect;}VW=tw;VH=th;canvas.style.width=VW+'px';canvas.style.height=VH+'px';canvas.width=Math.floor(VW*DPR);canvas.height=Math.floor(VH*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);}
 fit(); addEventListener('resize',fit);
-/* ---------- contest timer overlay ---------- */
-if (isContest && contestEnd > Date.now()) {
-  const timerEl = document.getElementById("contestTimer");
-  timerEl.style.display = "block";
-
-  const tick = () => {
-    const remain = contestEnd - Date.now();
-    if (remain <= 0) {
-      timerEl.textContent = "🏁 Contest ended!";
-      // stop the game and show overlay
-      state = "dead";
-      document.getElementById("ovOver").classList.add("show");
-document.querySelector("#finalScore").textContent = score;
-document.querySelector(".sub").innerHTML = "<b>Contest Ended!</b><br>Final Score: " + score;
-
-      return;
-    }
-
-    const m = Math.floor(remain / 60000);
-    const s = Math.floor((remain % 60000) / 1000);
-    timerEl.textContent = `⏳ ${m}:${s.toString().padStart(2, "0")}`;
-    requestAnimationFrame(tick);
-  };
-  tick();
-}
 
 /* ---------- audio ---------- */
 let muted=false,audioCtx;
