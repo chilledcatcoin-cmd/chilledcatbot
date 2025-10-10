@@ -100,15 +100,14 @@
   border: 1px solid #e4e9ff;
   border-radius: 12px;
   padding: 10px;
-  max-height: 180px;             /* ✅ Limit height */
-  overflow-y: auto;              /* ✅ Scroll inside box if too long */
-  scrollbar-width: thin;         /* Firefox nice scroll */
+  max-height: 150px;            /* ✅ fits about 7 lines comfortably */
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-.lb::-webkit-scrollbar {         /* Chrome smooth scrollbar */
+.lb::-webkit-scrollbar {
   width: 6px;
 }
-
 .lb::-webkit-scrollbar-thumb {
   background: #c4c9ff;
   border-radius: 4px;
@@ -117,7 +116,7 @@
 .lb h3 {
   margin: 0 0 6px;
   font-size: 15px;
-  text-align: center;            /* Center title for better balance */
+  text-align: center;
 }
 
 .lb ol {
@@ -131,8 +130,9 @@
   margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;       /* ✅ Truncate long names gracefully */
+  text-overflow: ellipsis;
 }
+
 
   .muted{color:#666;font-size:13px}
 
@@ -517,7 +517,7 @@ if (isMobile) {
     status.textContent = "Loading…";
 
     const statName = contestKey ? contestKey : "FlappyCatScore";
-    PlayFabClientSDK.GetLeaderboard({ StatisticName: statName, StartPosition: 0, MaxResultsCount: 10 },
+    PlayFabClientSDK.GetLeaderboard({ StatisticName: statName, StartPosition: 0, MaxResultsCount: 7 },
       res => {
         status.style.display = "none"; list.innerHTML = "";
         if (!res.data || !res.data.Leaderboard.length) { list.innerHTML = "<li>No scores yet</li>"; return; }
