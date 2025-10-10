@@ -164,9 +164,7 @@ const uid = user.id ? String(user.id) : crypto.randomUUID();
 const username = user.first_name || user.username || "Anonymous";
 const contestKey = params.get("contest"); // active contest leaderboard key
 
-// Contest countdown timer
-const endTime = parseInt(params.get("end") || "0");
-// Contest countdown timer
+
 let contestActive = true;
 const endTime = parseInt(params.get("end") || "0");
 
@@ -174,47 +172,55 @@ if (contestKey && endTime) {
   const timerBox = document.getElementById("contestTimer");
   timerBox.style.display = "block";
 
-function updateTimer() {
-  const remaining = endTime - Date.now();
+  const updateTimer = () => {
+    const remaining = endTime - Date.now();
+    const sb = document.getElementById("scorebox");
 
-  const sb = document.getElementById("scorebox");
+    if (remaining <= 0) {
+      if (contestActive) {
+        contestActive = false;
 
-  if (remaining <= 0) {
-    if (contestActive) {
-      contestActive = false;
-      // Change score box color + label
-      sb.style.background = "#ffd6d6";
-      sb.style.border = "2px solid #d00";
-      sb.innerHTML = "🏁 Contest Ended — Score: <span id='score'>" + score + "</span>";
+        // Change score box color + label safely
+        const currentScore = window.score || 0;
+        sb.style.background = "#ffd6d6";
+        sb.style.border = "2px solid #d00";
+        sb.innerHTML = "🏁 Contest Ended — Score: <span id='score'>" + currentScore + "</span>";
 
-      // Add a small floating banner on top
-      const banner = document.createElement("div");
-      banner.textContent = "🏁 Contest Ended — Scores no longer count";
-      banner.style.position = "absolute";
-      banner.style.top = "0";
-      banner.style.left = "0";
-      banner.style.right = "0";
-      banner.style.background = "#d00";
-      banner.style.color = "#fff";
-      banner.style.fontWeight = "bold";
-      banner.style.textAlign = "center";
-      banner.style.padding = "6px 0";
-      banner.style.zIndex = "9999";
-      document.body.appendChild(banner);
+        // Add a small floating banner on top
+        const banner = document.createElement("div");
+        banner.textContent = "🏁 Contest Ended — Scores no longer count";
+        banner.style.position = "absolute";
+        banner.style.top = "0";
+        banner.style.left = "0";
+        banner.style.right = "0";
+        banner.style.background = "#d00";
+        banner.style.color = "#fff";
+        banner.style.fontWeight = "bold";
+        banner.style.textAlign = "center";
+        banner.style.padding = "6px 0";
+        banner.style.zIndex = "9999";
+        banner.style.pointerEvents = "none";
+        document.body.appendChild(banner);
+
+        // Fade out after 10 seconds
+        setTimeout(() => {
+          banner.style.transition = "opacity 1s ease";
+          banner.style.opacity = "0";
+          setTimeout(() => banner.remove(), 1000);
+        }, 10000);
+      }
+
+      timerBox.textContent = "🏁 Contest Over!";
+      timerBox.style.color = "#c00";
+      return;
     }
 
-    const timerBox = document.getElementById("contestTimer");
-    timerBox.textContent = "🏁 Contest Over!";
-    timerBox.style.color = "#c00";
-    return;
-  }
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    timerBox.textContent = `⏳ ${mins}m ${secs}s remaining`;
+  };
 
-  const mins = Math.floor(remaining / 60000);
-  const secs = Math.floor((remaining % 60000) / 1000);
-  document.getElementById("contestTimer").textContent = `⏳ ${mins}m ${secs}s remaining`;
-}
-
-
+  // Run immediately and every second
   updateTimer();
   setInterval(updateTimer, 1000);
 }
