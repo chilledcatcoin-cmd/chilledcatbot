@@ -72,6 +72,20 @@
 
   .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:auto}
   .overlay.show{display:flex}
+.overlay .panel {
+  max-height: 90vh;              /* Prevent panel from taking 100% height */
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.overlay .panel::-webkit-scrollbar {
+  width: 6px;
+}
+.overlay .panel::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
   .panel{width:min(420px,90vw);background:#fffffff2;border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.25);padding:18px;text-align:center}
   .titleWrap{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:8px}
   .logoCat{width:min(260px,55vw);height:auto;display:block}
@@ -79,9 +93,47 @@
   .sub{font-size:14px;color:#333;margin:0 0 6px}
   .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px}
 
-  .lb{margin-top:12px;text-align:left;background:#f7f9ff;border:1px solid #e4e9ff;border-radius:12px;padding:10px}
-  .lb h3{margin:0 0 6px;font-size:16px}
-  .lb ol{margin:0;padding-left:22px}
+.lb {
+  margin-top: 12px;
+  text-align: left;
+  background: #f7f9ff;
+  border: 1px solid #e4e9ff;
+  border-radius: 12px;
+  padding: 10px;
+  max-height: 180px;             /* ✅ Limit height */
+  overflow-y: auto;              /* ✅ Scroll inside box if too long */
+  scrollbar-width: thin;         /* Firefox nice scroll */
+}
+
+.lb::-webkit-scrollbar {         /* Chrome smooth scrollbar */
+  width: 6px;
+}
+
+.lb::-webkit-scrollbar-thumb {
+  background: #c4c9ff;
+  border-radius: 4px;
+}
+
+.lb h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  text-align: center;            /* Center title for better balance */
+}
+
+.lb ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.lb li {
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;       /* ✅ Truncate long names gracefully */
+}
+
   .muted{color:#666;font-size:13px}
 
 #contestTimer { color: #0a0; font-size: 14px; }
@@ -350,32 +402,59 @@ function initGame() {
     fullyReset(); requestWakeLock();
   }
 
-  /* ---------- Input ---------- */
-  if (isMobile) {
-    canvas.addEventListener('touchstart', e => {
-      initAudio(); e.preventDefault();
-      if (state === 'start' || state === 'dead') { startGame(); return; }
-      if (state === 'playing') { cat.vy = -FLAP; beep(520, 0.05, 'square', 0.06); }
-    }, { passive: false });
-  } else {
-    addEventListener('keydown', e => {
-      if (e.code === 'Space') {
-        e.preventDefault(); initAudio();
-        if (state === 'start' || state === 'dead') { startGame(); return; }
-        if (state === 'playing') { cat.vy = -FLAP; beep(520, 0.05, 'square', 0.06); }
-      }
-    });
-    canvas.addEventListener('click', e => {
-      initAudio(); e.preventDefault();
-      if (state === 'start' || state === 'dead') { startGame(); return; }
-      if (state === 'playing') { cat.vy = -FLAP; beep(520, 0.05, 'square', 0.06); }
-    });
-  }
+/* ---------- Input ---------- */
+const ovOver = document.getElementById("ovOver");
 
-  document.getElementById('btnStart').onclick = () => { initAudio(); startGame(); };
-  document.getElementById('btnRestart').onclick = () => {
-    document.getElementById('ovOver').classList.remove('show'); fullyReset();
-  };
+document.getElementById("btnStart").onclick = () => {
+  initAudio();
+  startGame();
+};
+
+document.getElementById("btnRestart").onclick = () => {
+  ovOver.classList.remove("show");
+  fullyReset();
+};
+
+/* ✅ Improved flap control — disable restart while overlay visible */
+const flap = () => {
+  // If Game Over overlay is visible, ignore all input
+  if (ovOver.classList.contains("show")) return;
+
+  if (state === "start") {
+    startGame(); // only from start screen
+  } else if (state === "playing") {
+    cat.vy = -FLAP;
+    beep(520, 0.05, "square", 0.06);
+  }
+};
+
+/* ✅ Input bindings */
+if (isMobile) {
+  canvas.addEventListener(
+    "touchstart",
+    (e) => {
+      e.preventDefault();
+      initAudio();
+      flap();
+    },
+    { passive: false }
+  );
+} else {
+  addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+      e.preventDefault();
+      initAudio();
+      flap();
+    }
+  });
+
+  canvas.addEventListener("click", (e) => {
+    e.preventDefault();
+    initAudio();
+    flap();
+  });
+}
+
 
   /* ---------- Physics & Loop ---------- */
   function step(dt) {
