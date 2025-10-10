@@ -315,8 +315,8 @@ async function requestWakeLock(){if('wakeLock' in navigator){try{wakeLock=await 
 
 /* ---------- game state ---------- */
 const G=1200,FLAP=420,PIPE_GAP_MIN=150,PIPE_GAP_MAX=210,PIPE_W=70,PIPE_SPACING=220,PIPE_SPEED=160,GROUND_H=60;
-let tPrev=0,acc=0,dtFixed=1/120,state='start';
-window.score = 0;
+let tPrev = 0, acc = 0, dtFixed = 1/120, state = 'start', score = 0;
+window.score = score;
 
 const catImg=new Image();catImg.src='./images/chilled_cat_fappy.png';let catImgReady=false;catImg.onload=()=>catImgReady=true;
 const cat={x:120,y:200,vy:0,r:28,rot:0};const pipes=[];
