@@ -166,30 +166,33 @@ const contestKey = params.get("contest"); // active contest leaderboard key
 
 // Contest countdown timer
 const endTime = parseInt(params.get("end") || "0");
+// Contest countdown timer
+let contestActive = true;
+const endTime = parseInt(params.get("end") || "0");
+
 if (contestKey && endTime) {
-  const sb = document.getElementById("scorebox");
-  const timerEl = document.createElement("div");
-  timerEl.id = "contestTimer";
-  timerEl.style.fontWeight = "bold";
-  timerEl.style.marginTop = "4px";
-  sb.appendChild(timerEl);
+  const timerBox = document.getElementById("contestTimer");
+  timerBox.style.display = "block";
 
   function updateTimer() {
     const remaining = endTime - Date.now();
+
     if (remaining <= 0) {
-      timerEl.textContent = "🏁 Contest Over!";
-      timerEl.style.color = "#c00";
-      clearInterval(timerInterval);
+      timerBox.textContent = "🏁 Contest Over!";
+      timerBox.style.color = "#c00";
+      contestActive = false; // ✅ mark contest inactive
       return;
     }
+
     const mins = Math.floor(remaining / 60000);
     const secs = Math.floor((remaining % 60000) / 1000);
-    timerEl.textContent = `⏳ ${mins}m ${secs}s remaining`;
+    timerBox.textContent = `⏳ ${mins}m ${secs}s remaining`;
   }
 
   updateTimer();
-  const timerInterval = setInterval(updateTimer, 1000);
+  setInterval(updateTimer, 1000);
 }
+
 
 const contestEnd = Number(params.get("end") || 0);
 const isContest = Boolean(contestKey && contestEnd);
@@ -339,16 +342,20 @@ function die(){
       statsToSave.push({ StatisticName:"FlappyCatScore", Value: score });
     }
 
-    // If a contest is active, also track in that contest leaderboard
-// If a contest is active, also track in that contest leaderboard
 if (contestKey) {
-  const prevContest = res.data.Statistics.find(s => s.StatisticName === contestKey)?.Value || 0;
-  if (score > prevContest) {
-    statsToSave.push({ StatisticName: contestKey, Value: score });
+  // 🏁 If contest has expired, don't save
+  if (!contestActive) {
+    console.log("🏁 Contest over — skipping contest score save");
   } else {
-    console.log("ℹ️ Contest score not higher, skipping update");
+    const prevContest = res.data.Statistics.find(s => s.StatisticName === contestKey)?.Value || 0;
+    if (score > prevContest) {
+      statsToSave.push({ StatisticName: contestKey, Value: score });
+    } else {
+      console.log("ℹ️ Contest score not higher, skipping update");
+    }
   }
 }
+
 
 
     if (statsToSave.length > 0) {
