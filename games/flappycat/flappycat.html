@@ -206,21 +206,35 @@
 const playFabTitleId = "B4195";
 PlayFab.settings.titleId = playFabTitleId;
 
+/* ---------- Parse URL Parameters ---------- */
 const params = new URLSearchParams(location.search);
 let user = {};
-try { user = JSON.parse(decodeURIComponent(params.get("user") || "{}")); } catch { user = {}; }
+try {
+  user = JSON.parse(decodeURIComponent(params.get("user") || "{}"));
+} catch {
+  user = {};
+}
 
 const uid = user.id ? String(user.id) : crypto.randomUUID();
 const username = user.first_name || user.username || "Anonymous";
+const chatId = user.chat_id || params.get("chat") || "unknown_chat";
 const contestKey = params.get("contest");
 const endTime = parseInt(params.get("end") || "0");
 let contestActive = true;
 window.score = 0;
 
+console.log("🐾 Flappy Cat loaded:");
+console.log("  User:", user);
+console.log("  Chat:", chatId);
+console.log("  Contest Key:", contestKey);
+
+
 /* ---------- Contest Timer ---------- */
 if (contestKey && endTime) {
   const timerBox = document.getElementById("contestTimer");
   timerBox.style.display = "block";
+
+  timerBox.innerHTML = `🐾 ${user.first_name || "Player"} — Group: ${chatId}<br>`;
 
   const updateTimer = () => {
     const remaining = endTime - Date.now();
